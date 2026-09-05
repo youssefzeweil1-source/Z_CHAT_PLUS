@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متجر Zeweil Chat Plus</title>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
+    <script src="https://www.paypal.com/sdk/js?client-id=BAAVjGNC6q9UhRe25_LAB-PEfNPNrGGfYoQPZyt2rhWyS0JPsfW2l5gdAXRAfsGO-dpD9AldmPRY-FSTO0&components=hosted-buttons&disable-funding=venmo&currency=USD"></script>
+    <style>
+        :root { --main:#5b8cff; --pink:#ff7aa2; --green:#25c5a8; --gold:#ffb454; --bg:#0f1117; --card:#171b24; --border:#2b3342; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; font-family:Tahoma, Arial, sans-serif; color:#eef1f7; background:radial-gradient(900px 600px at 15% -10%, rgba(255,122,162,.20), transparent), radial-gradient(800px 600px at 100% 0, rgba(91,140,255,.22), transparent), var(--bg); padding:22px; }
+        .topbar { max-width:1050px; margin:0 auto 22px; display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+        .brand { margin:0; font-size:clamp(1.5rem, 5vw, 2.4rem); background:linear-gradient(90deg,var(--main),var(--pink),var(--green),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+        .wallet { display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:999px; background:rgba(23,27,36,.86); padding:8px 13px; box-shadow:0 10px 25px rgba(0,0,0,.28); }
+        .wallet img { width:34px; height:34px; object-fit:contain; }
+        #balance { direction:ltr; font-size:1.1rem; font-weight:bold; color:#fff; }
+        .back { color:#10141d; background:linear-gradient(135deg,var(--green),var(--main)); text-decoration:none; border-radius:999px; padding:10px 14px; font-weight:bold; }
+        
+        .section-title { max-width:1050px; margin:30px auto 15px; font-size:1.5rem; color:var(--main); border-bottom:2px solid var(--border); padding-bottom:10px; }
+        .grid { max-width:1050px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; }
+        .pack { background:linear-gradient(180deg, rgba(255,255,255,.04), transparent), var(--card); border:1px solid var(--border); border-radius:18px; padding:16px; text-align:center; box-shadow:0 16px 36px rgba(0,0,0,.30); transition: 0.3s; position: relative; overflow: hidden; }
+        .pack:hover { transform: translateY(-5px); border-color: var(--main); }
+        .pack img { width:100%; max-width:140px; height:120px; object-fit:contain; display:block; margin:0 auto 10px; filter:drop-shadow(0 10px 20px rgba(0,0,0,.35)); }
+        .coins { font-size:1.25rem; font-weight:bold; }
+        .price { color:#ffd08a; margin:8px 0 14px; display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+        .old-price { color:#8f9bad; text-decoration:line-through; text-decoration-thickness:2px; text-decoration-color:#ff7aa2; }
+        .new-price { color:#ffd08a; font-size:1.12rem; font-weight:bold; }
+        .discount-badge { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:3px 8px; color:#07120e; background:linear-gradient(135deg,#7ee787,#25c5a8); font-size:.78rem; font-weight:bold; position: relative; overflow: hidden; }
+        
+        /* تأثير اللمعان الجذاب */
+        .shiny-discount {
+            position: relative;
+            background: linear-gradient(90deg, #25c5a8, #7ee787, #25c5a8);
+            background-size: 200% auto;
+            color: #07120e !important;
+            animation: shine-bg 2s linear infinite;
+            box-shadow: 0 0 15px rgba(37, 197, 168, 0.5);
+        }
+        @keyframes shine-bg {
+            to { background-position: 200% center; }
+        }
+
+        /* شريط الحزمة المائل في الزاوية */
+        .pack-ribbon {
+            position: absolute;
+            top: 12px;
+            left: -35px;
+            background: linear-gradient(135deg, var(--main), var(--pink));
+            color: #fff;
+            padding: 4px 40px;
+            transform: rotate(-45deg);
+            font-size: 0.7rem;
+            font-weight: bold;
+            z-index: 5;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* تحسين وضوح الصور */
+        .pack img, .verified-badge-small, .qr {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+        }
+        .buy { width:100%; border:0; border-radius:12px; padding:11px 14px; cursor:pointer; font-weight:bold; color:#111827; background:linear-gradient(135deg,var(--gold),var(--pink)); transition: 0.2s; }
+        .buy:hover { filter: brightness(1.2); }
+        .payment-options { display:grid; gap:10px; margin-top:10px; }
+        .paypal-button-wrap { direction:ltr; min-height:45px; }
+        .buy:disabled { background: #333; color: #888; cursor: not-allowed; }
+
+        /* ألوان الأسماء */
+        .color-circle { width: 30px; height: 30px; border-radius: 50%; display: inline-block; margin: 5px; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .color-circle.active { border-color: #fff; transform: scale(1.2); }
+        .custom-color-card { border-color:rgba(255,180,84,.55); }
+        .custom-color-preview { width:82px; height:82px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 10px; background:var(--preview-color, #ff7aa2); color:#fff; font-weight:bold; border:3px solid rgba(255,255,255,.28); box-shadow:0 0 24px color-mix(in srgb, var(--preview-color, #ff7aa2) 75%, transparent); text-shadow:0 2px 8px rgba(0,0,0,.55); }
+        .custom-color-controls { display:grid; gap:9px; margin:12px 0; text-align:right; }
+        .custom-color-controls label { color:#d7e2f5; font-size:.84rem; }
+        .custom-color-row { display:flex; align-items:center; gap:10px; direction:ltr; }
+        .custom-color-picker { width:58px; height:42px; padding:0; border:1px solid #41506a; border-radius:10px; background:#0f1520; cursor:pointer; }
+        .custom-color-hex { flex:1; min-width:0; border:1px solid #35435b; border-radius:10px; padding:10px; background:#0f1520; color:#fff; direction:ltr; text-align:center; font-weight:bold; outline:none; }
+        .locked-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.9rem; z-index: 2; flex-direction: column; gap: 10px; padding: 10px; }
+        .verified-badge-small { width: 20px; height:20px; object-fit:contain; vertical-align: middle; mix-blend-mode:screen; filter:drop-shadow(0 2px 5px rgba(0,0,0,.35)); }
+
+        .modal { position:fixed; inset:0; background:rgba(2,5,12,.86); display:none; align-items:center; justify-content:center; padding:18px; z-index:1000; }
+        .modal.active { display:flex; }
+        .payment { width:min(94vw, 460px); max-height:92vh; overflow:auto; background:#151b27; border:1px solid #3a465e; border-radius:20px; padding:18px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.55); }
+        .qr { width:100%; max-width:300px; border-radius:14px; background:#fff; padding:8px; margin:12px auto; display:block; }
+        .instructions { color:#d7e2f5; line-height:1.8; background:#101723; border:1px solid #2a354b; border-radius:14px; padding:12px; margin:12px 0; text-align:right; }
+        .proof-form { display:grid; gap:10px; margin-top:12px; text-align:right; }
+        .proof-form label { color:#d7e2f5; font-size:.86rem; }
+        .proof-form input { width:100%; border:1px solid #35435b; border-radius:12px; padding:11px; background:#0f1520; color:#fff; outline:none; }
+        .proof-preview { display:none; max-width:100%; max-height:220px; object-fit:contain; border-radius:12px; border:1px solid #33415a; background:#0f1520; }
+        .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+        .actions button { flex:1; min-width:130px; border:0; border-radius:12px; padding:11px; cursor:pointer; font-weight:bold; text-decoration:none; text-align:center; }
+        .scan { background:linear-gradient(135deg,var(--green),var(--main)); color:#081018; }
+        .confirm { background:linear-gradient(135deg,#7ee787,#25c5a8); color:#07120e; }
+        .confirm:disabled { opacity:.6; cursor:not-allowed; }
+        .close { background:#30394c; color:#fff; }
+        .note { max-width:1050px; margin:18px auto 0; color:#aeb9cc; font-size:.9rem; line-height:1.7; text-align:center; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <h1 class="brand">🛒 متجر Zeweil Chat Plus</h1>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div class="wallet"><img src="z_coin.png" alt="Z Coin"><span>رصيدك:</span><span id="balance">0</span></div>
+            <a class="back" href="index.html">رجوع للشات</a>
+        </div>
+    </header>
+
+    <!-- قسم العملات -->
+    <div class="section-title">💰 شحن عملات Z Coin</div>
+    <main class="grid" id="packs"></main>
+
+    <!-- قسم التوثيق -->
+    <div class="section-title">✅ توثيق الحساب (Z Verified)</div>
+    <div class="grid" id="verification-packs"></div>
+
+    <!-- قسم الخدمات المميزة -->
+    <div class="section-title">✨ خدمات برستيج</div>
+    <div class="grid" id="prestige-items"></div>
+
+    <!-- قسم ألوان الأسماء -->
+    <div class="section-title">🎨 ألوان اسم المستخدم (للموثقين فقط)</div>
+    <div class="grid" id="name-colors"></div>
+
+    <p class="note">بعد الدفع لازم تاخد Screenshot لإيصال التحويل. ارجع للمتجر، اضغط تأكيد الدفع، ارفع صورة الإيصال واكتب الرقم اللي حولت منه. الطلب هيتراجع من الإدارة وبعد الموافقة الرصيد يتحدث تلقائيًا.</p>
+
+    <!-- مودال الدفع -->
+    <div class="modal" id="payment-modal" onclick="closePayment()">
+        <section class="payment" onclick="event.stopPropagation()">
+            <h2 id="payment-title">الدفع</h2>
+            <img id="payment-qr" class="qr" alt="QR Vodafone Cash">
+            <div class="instructions">
+                1) امسح QR Code من تطبيق فودافون كاش.<br>
+                2) نفّذ التحويل للحزمة المختارة.<br>
+                3) خد Screenshot لإيصال الدفع قبل ما ترجع للمتجر.<br>
+                4) ارفع صورة الإيصال واكتب رقم الموبايل اللي حولت منه، ثم اضغط تأكيد الدفع.
+            </div>
+            <div class="proof-form">
+                <label for="payer-phone">رقم الموبايل اللي حولت منه</label>
+                <input id="payer-phone" type="tel" inputmode="tel" placeholder="مثال: 01012345678">
+                <label for="receipt-input">صورة إيصال التحويل / Screenshot</label>
+                <input id="receipt-input" type="file" accept="image/*" onchange="previewReceipt(event)">
+                <img id="receipt-preview" class="proof-preview" alt="معاينة الإيصال">
+            </div>
+            <div class="actions">
+                <button class="scan" type="button" onclick="openVodafoneCash()">مسح</button>
+                <button id="submit-request-btn" class="confirm" type="button" onclick="submitDepositRequest()">تأكيد الدفع</button>
+                <button class="close" type="button" onclick="closePayment()">إغلاق</button>
+            </div>
+        </section>
+    </div>
+
+<script>
+    const firebaseConfig = { apiKey: "AIzaSyAlim9FOvDcMqTJWINoBCHk3k6DNXS-jTo", databaseURL: "https://zeweil-chat-default-rtdb.europe-west1.firebasedatabase.app", projectId: "zeweil-chat" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const WALLET_BALANCE_STORAGE_KEY = 'zeweil_z_coin_balance_v1';
+    
+    // بيانات المتجر
+    const coinPacks = [
+        { id:'c1', coins:50, price:20, oldPrice:30, image:'50.png', qr:'20 EG.png' },
+        { id:'c2', coins:150, price:50, oldPrice:75, image:'150.png', qr:'50 EG.png', paypalHostedButtonId:'BTTACTH8HAEN4' },
+        { id:'c3', coins:350, price:95, oldPrice:142.5, image:'350.png', qr:'95 EG.png' },
+        { id:'c4', coins:750, price:150, oldPrice:225, image:'750.png', qr:'150 EG.png' },
+        { id:'c5', coins:1000, price:200, oldPrice:300, image:'1000.png', qr:'200 EG.png' }
+    ];
+
+    const verificationPacks = [
+        { id:'v_week', type:'weekly', name:'توثيق أسبوعي', price:150, duration:7, image:'verified.png' },
+        { id:'v_month', type:'monthly', name:'توثيق شهري', price:525, duration:30, image:'verified.png' },
+        { id:'v_year', type:'yearly', name:'توثيق سنوي', price:1000, duration:365, image:'verified.png' }
+    ];
+
+    const prestigeItems = [
+        { id:'name_card', name:'بطاقة تغيير الاسم', price:100, image:'name_card.png', description:'تسمح لك بتغيير اسمك لمرة واحدة' }
+    ];
+
+    const nameColors = [
+        { id:'col_1', name:'أحمر ناري', price:50, color:'#ff4d4d' },
+        { id:'col_2', name:'أخضر زمردي', price:50, color:'#2ecc71' },
+        { id:'col_3', name:'أزرق ملكي', price:50, color:'#3498db' },
+        { id:'col_4', name:'بنفسجي غامض', price:50, color:'#9b59b6' },
+        { id:'col_5', name:'برتقالي مشرق', price:50, color:'#e67e22' },
+        { id:'col_6', name:'وردي فاتن', price:50, color:'#e84393' },
+        { id:'col_7', name:'أصفر ذهبي', price:50, color:'#f1c40f' },
+        { id:'col_custom', name:'لون مخصص بدرجاتك', price:200, color:'#ff7aa2', isCustom:true }
+    ];
+
+    let userId = '';
+    let userProfile = {};
+    let selectedItem = null;
+    let balanceRef = null;
+    let receiptDataUrl = '';
+    let selectedCustomNameColor = '#ff7aa2';
+
+    function formatPrice(value) { return value.toLocaleString('ar-EG'); }
+    function calculateDiscount(oldPrice, newPrice) {
+        if (!oldPrice || oldPrice <= newPrice) return 0;
+        return Math.round(((oldPrice - newPrice) / oldPrice) * 100);
+    }
+
+    function normalizeHexColor(value, fallback = '#ff7aa2') {
+        const color = String(value || '').trim();
+        return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
+    }
+
+    function getCurrentNameColor() {
+        return normalizeHexColor(userProfile?.appearance?.nameColor || userProfile?.nameColor || selectedCustomNameColor, selectedCustomNameColor);
+    }
+
+    function updateCustomColorPicker(value) {
+        selectedCustomNameColor = normalizeHexColor(value, selectedCustomNameColor);
+        const picker = document.getElementById('custom-name-color-picker');
+        const hexInput = document.getElementById('custom-name-color-hex');
+        const preview = document.getElementById('custom-name-color-preview');
+        if (picker) picker.value = selectedCustomNameColor;
+        if (hexInput) hexInput.value = selectedCustomNameColor;
+        if (preview) {
+            preview.style.setProperty('--preview-color', selectedCustomNameColor);
+            preview.style.color = selectedCustomNameColor;
+        }
+    }
+
+    // رندرة العناصر
+    function renderAll() {
+	        // العملات
+	        document.getElementById('packs').innerHTML = coinPacks.map(p => {
+                const discount = calculateDiscount(p.oldPrice, p.price);
+                return `
+	            <article class="pack">
+                    <div class="pack-ribbon">حزمة ${p.coins}</div>
+	                <img src="${p.image}" alt="${p.coins} عملة">
+	                <div class="coins">${p.coins.toLocaleString()} عملة</div>
+	                <div class="price">
+	                    <span class="old-price">${formatPrice(p.oldPrice)} ج.م</span>
+	                    <span class="new-price">${formatPrice(p.price)} ج.م</span>
+                        ${discount > 0 ? `<span class="discount-badge shiny-discount">خصم ${discount}%</span>` : ''}
+	                </div>
+	                <p class="instructions" style="font-size:.82rem; margin:10px 0;">${p.paypalHostedButtonId ? 'اختار Vodafone Cash للدفع المحلي ورفع الإيصال، أو VISA للدفع بالبطاقة عبر PayPal.' : 'اضغط شراء، ادفع بفودافون كاش، ثم ارفع Screenshot الإيصال ليتم إضافة العملات بعد مراجعة الإدارة.'}</p>
+                    ${p.paypalHostedButtonId ? `
+                    <div class="payment-options">
+                        <button class="buy" onclick="openPayment('coin', '${p.id}')">Vodafone Cash</button>
+                        <div id="paypal-container-${p.paypalHostedButtonId}" class="paypal-button-wrap" aria-label="VISA payment for ${p.coins} coins"></div>
+                    </div>` : `<button class="buy" onclick="openPayment('coin', '${p.id}')">شراء</button>`}
+	            </article>`;
+            }).join('');
+
+	        // التوثيق
+	        document.getElementById('verification-packs').innerHTML = verificationPacks.map(p => `
+	            <article class="pack">
+                    <div class="pack-ribbon">${p.name.split(' ')[1]}</div>
+	                <img src="${p.image}" alt="${p.name}">
+	                <div class="coins">${p.name}</div>
+	                <div class="price"><span class="new-price">${formatPrice(p.price)} Z Coin</span></div>
+	                <p class="instructions" style="font-size:.82rem; margin:10px 0;">التوثيق يتم من رصيد الموقع فقط: اشحن Z Coin أولاً ثم اضغط توثيق الآن وسيتم تفعيل العلامة فوراً.</p>
+	                <button class="buy" onclick="buyWithCoins('verify', '${p.id}')">توثيق الآن</button>
+	            </article>`).join('');
+
+        // البرستيج
+        document.getElementById('prestige-items').innerHTML = prestigeItems.map(p => `
+            <article class="pack">
+                <img src="${p.image}" alt="${p.name}">
+                <div class="coins">${p.name}</div>
+                <div style="font-size:0.8rem; color:#888; margin:5px 0;">${p.description}</div>
+                <div class="price"><span class="new-price">${p.price} Z Coin</span></div>
+                <p class="instructions" style="font-size:.82rem; margin:10px 0;">الخدمة تخصم من رصيد Z Coin مباشرة بعد التأكيد.</p>
+                <button class="buy" onclick="buyWithCoins('prestige', '${p.id}')">شراء بالعملات</button>
+            </article>`).join('');
+
+        // الألوان
+        const isVerified = userProfile && userProfile.isVerified && (!userProfile.verifiedUntil || Number(userProfile.verifiedUntil) > Date.now());
+        selectedCustomNameColor = getCurrentNameColor();
+        document.getElementById('name-colors').innerHTML = nameColors.map(p => {
+            const isCustom = !!p.isCustom;
+            const previewColor = isCustom ? selectedCustomNameColor : p.color;
+            return `
+            <article class="pack ${isCustom ? 'custom-color-card' : ''}">
+                ${!isVerified ? `<div class="locked-overlay"><span>🔒 للموثقين فقط</span><img src="verified.png" class="verified-badge-small" alt="verified"></div>` : ''}
+                ${isCustom ? `
+                    <div id="custom-name-color-preview" class="custom-color-preview" style="--preview-color:${previewColor}; color:${previewColor};">Aa</div>
+                    <div class="custom-color-controls">
+                        <label for="custom-name-color-picker">اختار اللون والدرجة من عجلة الألوان</label>
+                        <div class="custom-color-row">
+                            <input id="custom-name-color-picker" class="custom-color-picker" type="color" value="${previewColor}" ${!isVerified ? 'disabled' : ''} oninput="updateCustomColorPicker(this.value)">
+                            <input id="custom-name-color-hex" class="custom-color-hex" type="text" value="${previewColor}" maxlength="7" placeholder="#ff7aa2" ${!isVerified ? 'disabled' : ''} oninput="updateCustomColorPicker(this.value)">
+                        </div>
+                    </div>` : `
+                    <div class="color-circle" style="background:${p.color}; box-shadow: 0 0 10px ${p.color}"></div>`}
+                <div class="coins">${p.name}</div>
+                <div class="price"><span class="new-price">${p.price} Z Coin</span></div>
+                <p class="instructions" style="font-size:.82rem; margin:10px 0;">${isCustom ? 'اختار أي لون من عجلة الألوان وغير الدرجة براحتك، وبعد الشراء هيظهر على اسمك في الشات والملف الشخصي.' : 'ألوان الأسماء متاحة للموثقين فقط وتظهر في الشات والملف الشخصي بعد الشراء.'}</p>
+                <button class="buy" ${!isVerified ? 'disabled' : ''} onclick="buyWithCoins('color', '${p.id}')">${isCustom ? 'تثبيت اللون المختار' : 'امتلاك اللون'}</button>
+            </article>`;
+        }).join('');
+        updateCustomColorPicker(selectedCustomNameColor);
+        renderPayPalHostedButtons();
+    }
+
+    function renderPayPalHostedButtons() {
+        if (!window.paypal?.HostedButtons) return;
+        coinPacks
+            .filter(p => p.paypalHostedButtonId)
+            .forEach(p => {
+                const container = document.getElementById(`paypal-container-${p.paypalHostedButtonId}`);
+                if (!container || container.dataset.rendered === 'true') return;
+                container.dataset.rendered = 'true';
+                paypal.HostedButtons({
+                    hostedButtonId: p.paypalHostedButtonId,
+                }).render(`#paypal-container-${p.paypalHostedButtonId}`);
+            });
+    }
+
+    function openPayment(type, id) {
+        if (type === 'coin') selectedItem = coinPacks.find(p => p.id === id);
+        else if (type === 'verify') selectedItem = verificationPacks.find(p => p.id === id);
+        
+        receiptDataUrl = '';
+        document.getElementById('payer-phone').value = '';
+        document.getElementById('receipt-input').value = '';
+        document.getElementById('receipt-preview').style.display = 'none';
+        document.getElementById('payment-title').textContent = `دفع ${selectedItem.price} ج.م مقابل ${selectedItem.name || selectedItem.coins + ' عملة'}`;
+        document.getElementById('payment-qr').src = selectedItem.qr;
+        document.getElementById('payment-modal').classList.add('active');
+    }
+
+    async function buyWithCoins(type, id) {
+        if (!userId) { alert('سجل الدخول أولاً'); return; }
+        let item = type === 'prestige' ? prestigeItems.find(p => p.id === id) : type === 'verify' ? verificationPacks.find(p => p.id === id) : nameColors.find(p => p.id === id);
+        
+        if (!item) { alert('العنصر غير موجود.'); return; }
+        const currentBalance = Number(localStorage.getItem(WALLET_BALANCE_STORAGE_KEY) || 0);
+        if (currentBalance < item.price) { alert('رصيدك غير كافٍ. اشحن عملات أولاً.'); return; }
+
+        const isVerifiedNow = userProfile && userProfile.isVerified && (!userProfile.verifiedUntil || Number(userProfile.verifiedUntil) > Date.now());
+        if (type === 'color' && !isVerifiedNow) { alert('ألوان الأسماء متاحة للموثقين فقط.'); return; }
+
+        let customColor = '';
+        if (type === 'color' && item.isCustom) {
+            customColor = normalizeHexColor(selectedCustomNameColor, '');
+            if (!customColor) { alert('اختار لون صحيح من عجلة الألوان أولاً.'); return; }
+        }
+
+        if (confirm(`هل تريد شراء ${item.name} مقابل ${item.price} عملة؟`)) {
+            try {
+                // خصم العملات
+                await db.ref(`users/${userId}/wallet/zCoins`).set(currentBalance - item.price);
+                
+                if (type === 'verify') {
+                    const baseTime = Math.max(Date.now(), Number(userProfile.verifiedUntil || 0));
+                    const expiresAt = baseTime + (Number(item.duration || 0) * 24 * 60 * 60 * 1000);
+                    await db.ref(`users/${userId}`).update({
+                        isVerified: true,
+                        verifiedUntil: expiresAt,
+                        verifiedPlan: item.type
+                    });
+                } else if (type === 'prestige' && id === 'name_card') {
+                    // إضافة بطاقة تغيير الاسم
+                    const currentCards = (userProfile.inventory && userProfile.inventory.nameCards) || 0;
+                    await db.ref(`users/${userId}/inventory/nameCards`).set(currentCards + 1);
+                } else if (type === 'color') {
+                    // إضافة اللون للمستخدم
+                    if (item.isCustom) {
+                        await db.ref(`users/${userId}/appearance/nameColor`).set(customColor);
+                    } else {
+                        await db.ref(`users/${userId}/appearance/nameColor`).set(item.color);
+                    }
+                }
+                alert('تمت عملية الشراء بنجاح!');
+                location.reload();
+            } catch (e) { alert('حدث خطأ أثناء الشراء.'); }
+        }
+    }
+
+    function closePayment() { document.getElementById('payment-modal').classList.remove('active'); }
+    function openVodafoneCash() { window.location.href = 'vodafonecash://scan'; }
+
+    function previewReceipt(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            receiptDataUrl = String(reader.result || '');
+            const preview = document.getElementById('receipt-preview');
+            preview.src = receiptDataUrl;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function submitDepositRequest() {
+        const phone = document.getElementById('payer-phone').value.trim();
+        if (!userId) { alert('سجل الدخول أولاً'); return; }
+        if (!/^01\d{9}$/.test(phone)) { alert('رقم غير صحيح'); return; }
+        if (!receiptDataUrl) { alert('ارفع الإيصال'); return; }
+
+        const btn = document.getElementById('submit-request-btn');
+        btn.disabled = true;
+        try {
+            const requestRef = db.ref('depositRequests').push();
+            await requestRef.set({
+                uid: userId,
+                userName: userProfile.name || 'مستخدم',
+                type: selectedItem.type ? 'verification' : 'coins',
+                itemId: selectedItem.id,
+                itemName: selectedItem.name || `${selectedItem.coins} عملة`,
+                itemImage: selectedItem.image || '50.png',
+                coins: Number(selectedItem.coins || 0),
+                price: selectedItem.price,
+                payerPhone: phone,
+                receiptImage: receiptDataUrl,
+                status: 'pending',
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            });
+            closePayment();
+            alert('تم إرسال الطلب للمراجعة.');
+        } catch (error) { alert('خطأ في الإرسال'); }
+        finally { btn.disabled = false; }
+    }
+
+    function setBalance(value) {
+        const safe = Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
+        localStorage.setItem(WALLET_BALANCE_STORAGE_KEY, String(safe));
+        document.getElementById('balance').textContent = safe.toLocaleString();
+    }
+
+    firebase.auth().onAuthStateChanged(user => {
+        userId = user?.uid || '';
+        if (userId) {
+            db.ref(`users/${userId}`).on('value', snap => {
+                userProfile = snap.val() || {};
+                setBalance(userProfile.wallet?.zCoins || 0);
+                renderAll();
+            });
+        } else {
+            renderAll();
+        }
+    });
+</script>
+</body>
+</html>
