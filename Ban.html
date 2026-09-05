@@ -1,0 +1,409 @@
+ <!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>إدارة التبنيد - ZEWEIL CHAT</title>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+  <style>
+    :root { --main:#5b8cff; --danger:#ff5f7d; --ok:#42d392; --bg:#0f1117; --panel:#171b24; --border:#2b3342; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:#eef1f7; font-family:Tahoma,sans-serif; padding:16px; }
+    .wrap { max-width:1100px; margin:0 auto; }
+    .title { text-align:center; margin:8px 0 14px; font-size:clamp(1.2rem,4vw,1.8rem); color:#fff; }
+    .top-links { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
+    .btn { border:none; border-radius:10px; padding:9px 12px; cursor:pointer; font-weight:bold; }
+    .btn-main { background:linear-gradient(135deg,var(--main),#7b73ff); color:#fff; }
+    .btn-danger { background:linear-gradient(135deg,#ff7f96,var(--danger)); color:#fff; }
+    .btn-ok { background:linear-gradient(135deg,#6bffad,var(--ok)); color:#052216; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    h2 { margin:0 0 8px; font-size:1.1rem; }
+    .hint { color:#9ca3b3; font-size:0.84rem; margin:0 0 10px; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+    input, select { background:#0e1523; color:#fff; border:1px solid #34405a; border-radius:8px; padding:8px; min-width:130px; }
+    .list { max-height:420px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+    .item { background:#101726; border:1px solid #2d3b53; border-radius:10px; padding:8px; }
+    .meta { color:#a8b5cc; font-size:0.8rem; margin-top:4px; }
+    .status { margin-top:6px; font-size:0.82rem; }
+    .status.banned { color:#ffb9c6; }
+    .status.ok { color:#8ef0bd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="title">🚫 إدارة التبنيد (الغرف + الشات)</h1>
+    <div class="top-links">
+      <button class="btn btn-main" onclick="location.href='index.html'">فتح الشات</button>
+      <button class="btn btn-main" onclick="location.href='11admin.html'">لوحة الإدارة</button>
+      <button class="btn btn-ok" onclick="refreshAll()">تحديث الكل</button>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>تبنيد المستخدم من الشات بالكامل</h2>
+        <p class="hint">هذا التبنيد يمنع المستخدم من فتح الشات أو دخول أي غرفة.</p>
+        <div class="row">
+          <input id="chat-ban-search" type="text" placeholder="بحث باسم المستخدم" oninput="renderChatBanUsers()" />
+        </div>
+        <div id="chat-ban-list" class="list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>تبنيد المستخدم من غرفة محددة</h2>
+        <p class="hint">اختر غرفة، ثم بنّد المستخدم منها فقط.</p>
+        <div class="row">
+          <input id="room-select-search" type="text" placeholder="ابحث باسم الغرفة" oninput="renderRoomSelect()" />
+          <select id="room-select" onchange="renderRoomBanUsers()"></select>
+          <input id="room-ban-search" type="text" placeholder="بحث باسم المستخدم" oninput="renderRoomBanUsers()" />
+        </div>
+        <div id="room-ban-list" class="list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAlim9FOvDcMqTJWINoBCHk3k6DNXS-jTo",
+      databaseURL: "https://zeweil-chat-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "zeweil-chat"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const BAN_PRESETS = [
+      { label:'30 دقيقة', minutes:30 },
+      { label:'ساعة', minutes:60 },
+      { label:'6 ساعات', minutes:360 },
+      { label:'يوم', minutes:1440 },
+      { label:'7 أيام', minutes:10080 },
+      { label:'دائم', minutes:0 }
+    ];
+
+    let usersCache = [];
+    let usersByIdCache = {};
+    let roomsCache = [];
+    let roomMembersByRoomCache = {};
+    let chatBansCache = {};
+    let roomBansCache = {};
+
+    function escapeHTML(v='') {
+      return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function labelUntil(expiresAt) {
+      const t = Number(expiresAt || 0);
+      if (!t) return 'دائم';
+      if (t <= Date.now()) return 'منتهي';
+      return new Date(t).toLocaleString('ar-EG');
+    }
+
+    function getExpiryFromInputs(durationValue, customValue) {
+      const custom = Number(customValue);
+      const preset = Number(durationValue);
+      const mins = Number.isFinite(custom) && custom > 0 ? custom : preset;
+      if (!Number.isFinite(mins) || mins <= 0) return 0;
+      return Date.now() + (mins * 60000);
+    }
+
+    function durationOptionsHTML() {
+      return BAN_PRESETS.map(x => `<option value="${x.minutes}">${escapeHTML(x.label)}</option>`).join('');
+    }
+
+    function getUserName(user = {}) {
+      return String(user.name || `مستخدم-${String(user.uid || '').slice(0, 6)}`);
+    }
+
+    function normalizeUser(uid = '', user = {}, fallbackName = '') {
+      const cleanUid = String(uid || '').trim();
+      if (!cleanUid) return null;
+      const safe = user && typeof user === 'object' ? user : {};
+      return {
+        uid: cleanUid,
+        name: String(safe.name || fallbackName || '').trim(),
+        currentRoom: String(safe.currentRoom || '').trim(),
+        roomsVisited: safe.roomsVisited && typeof safe.roomsVisited === 'object' ? safe.roomsVisited : {}
+      };
+    }
+
+    function upsertUserRecord(userMap, incoming) {
+      if (!incoming || !incoming.uid) return;
+      const existing = userMap[incoming.uid] || {};
+      userMap[incoming.uid] = {
+        uid: incoming.uid,
+        name: String(incoming.name || existing.name || '').trim(),
+        currentRoom: String(incoming.currentRoom || existing.currentRoom || '').trim(),
+        roomsVisited: {
+          ...(existing.roomsVisited && typeof existing.roomsVisited === 'object' ? existing.roomsVisited : {}),
+          ...(incoming.roomsVisited && typeof incoming.roomsVisited === 'object' ? incoming.roomsVisited : {})
+        }
+      };
+    }
+
+    function collectRoomsFromUsers(users = []) {
+      const set = new Set();
+      users.forEach(user => {
+        const current = String(user.currentRoom || '').trim();
+        if (current) set.add(current);
+        const visited = user.roomsVisited && typeof user.roomsVisited === 'object' ? user.roomsVisited : {};
+        Object.keys(visited).forEach(room => {
+          const roomName = String(room || '').trim();
+          if (roomName) set.add(roomName);
+        });
+      });
+      return Array.from(set);
+    }
+
+    async function fetchRoomNamesShallow() {
+      const baseUrl = String(firebaseConfig.databaseURL || '').replace(/\/+$/, '');
+      if (!baseUrl) return [];
+      try {
+        const res = await fetch(`${baseUrl}/rooms.json?shallow=true`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = await res.json();
+        if (!payload || typeof payload !== 'object') return [];
+        return Object.keys(payload).map(room => String(room || '').trim()).filter(Boolean);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function createBanPayload(uid, userName, reason, expiresAt) {
+      return {
+        uid,
+        userName,
+        reason,
+        bannedAt: firebase.database.ServerValue.TIMESTAMP,
+        expiresAt,
+        bannedBy: 'ban-page'
+      };
+    }
+
+    function applyChatBan(uid, trigger) {
+      const card = trigger.closest('.item');
+      const duration = card.querySelector('.ban-duration').value;
+      const custom = card.querySelector('.ban-custom').value;
+      const reason = card.querySelector('.ban-reason').value.trim().slice(0, 240);
+      const user = usersCache.find(u => u.uid === uid) || { uid, name:'' };
+      const expiresAt = getExpiryFromInputs(duration, custom);
+      db.ref(`bans/${uid}`).set(createBanPayload(uid, getUserName(user), reason, expiresAt)).then(() => {
+        chatBansCache[uid] = {
+          uid,
+          userName: getUserName(user),
+          reason,
+          bannedAt: Date.now(),
+          expiresAt,
+          bannedBy: 'ban-page'
+        };
+        renderChatBanUsers();
+      }).catch(e => alert(e.message));
+    }
+
+    function removeChatBan(uid) {
+      db.ref(`bans/${uid}`).remove().then(() => {
+        delete chatBansCache[uid];
+        renderChatBanUsers();
+      }).catch(e => alert(e.message));
+    }
+
+    function applyRoomBan(uid, trigger) {
+      const room = document.getElementById('room-select').value;
+      if (!room) return;
+      const card = trigger.closest('.item');
+      const duration = card.querySelector('.ban-duration').value;
+      const custom = card.querySelector('.ban-custom').value;
+      const reason = card.querySelector('.ban-reason').value.trim().slice(0, 240);
+      const user = usersCache.find(u => u.uid === uid) || { uid, name:'' };
+      const expiresAt = getExpiryFromInputs(duration, custom);
+      db.ref(`rooms/${room}/bans/${uid}`).set(createBanPayload(uid, getUserName(user), reason, expiresAt)).then(() => {
+        roomBansCache[uid] = {
+          uid,
+          userName: getUserName(user),
+          reason,
+          bannedAt: Date.now(),
+          expiresAt,
+          bannedBy: 'ban-page'
+        };
+        renderRoomBanUsers();
+      }).catch(e => alert(e.message));
+    }
+
+    function removeRoomBan(uid) {
+      const room = document.getElementById('room-select').value;
+      if (!room) return;
+      db.ref(`rooms/${room}/bans/${uid}`).remove().then(() => {
+        delete roomBansCache[uid];
+        renderRoomBanUsers();
+      }).catch(e => alert(e.message));
+    }
+
+    function renderChatBanUsers() {
+      const holder = document.getElementById('chat-ban-list');
+      const q = document.getElementById('chat-ban-search').value.trim().toLowerCase();
+      const rows = usersCache.filter(u => getUserName(u).toLowerCase().includes(q));
+      if (!rows.length) {
+        holder.innerHTML = '<div class="meta">لا يوجد مستخدمون مطابقون.</div>';
+        return;
+      }
+      holder.innerHTML = rows.map(u => {
+        const ban = chatBansCache[u.uid] || null;
+        const active = !!ban && (!Number(ban.expiresAt || 0) || Number(ban.expiresAt) > Date.now());
+        const reason = ban && ban.reason ? ` • السبب: ${escapeHTML(ban.reason)}` : '';
+        return `
+          <div class="item">
+            <div><b>${escapeHTML(getUserName(u))}</b></div>
+            <div class="meta">${escapeHTML(u.uid)}</div>
+            <div class="row" style="margin-top:8px;">
+              <select class="ban-duration">${durationOptionsHTML()}</select>
+              <input class="ban-custom" type="number" min="1" placeholder="دقائق إضافية">
+              <input class="ban-reason" type="text" placeholder="السبب">
+            </div>
+            <div class="row">
+              <button class="btn btn-danger" onclick="applyChatBan('${u.uid}', this)">تبنيد من الشات</button>
+              <button class="btn btn-main" onclick="removeChatBan('${u.uid}')">فك التبنيد</button>
+            </div>
+            <div class="status ${active ? 'banned' : 'ok'}">${active ? `🚫 محظور حتى: ${escapeHTML(labelUntil(ban.expiresAt))}${reason}` : '✅ غير محظور'}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderRoomSelect() {
+      const sel = document.getElementById('room-select');
+      const roomQuery = document.getElementById('room-select-search').value.trim().toLowerCase();
+      const filteredRooms = roomsCache.filter(r => String(r).toLowerCase().includes(roomQuery));
+      if (!roomsCache.length) {
+        sel.innerHTML = '<option value="">لا توجد غرف</option>';
+        return;
+      }
+      if (!filteredRooms.length) {
+        sel.innerHTML = '<option value="">لا توجد غرف مطابقة</option>';
+        renderRoomBanUsers();
+        return;
+      }
+      const current = sel.value;
+      sel.innerHTML = filteredRooms.map(r => {
+        const membersCount = getActiveRoomMembers(r).length;
+        const label = membersCount ? `${r} (${membersCount})` : r;
+        return `<option value="${escapeHTML(r)}">${escapeHTML(label)}</option>`;
+      }).join('');
+      if (filteredRooms.includes(current)) sel.value = current;
+      loadRoomBansForSelectedRoom().then(() => renderRoomBanUsers());
+    }
+
+    function getActiveRoomMembers(room) {
+      // لازم يطابق index.html: المصدر الأساسي للأعضاء هو rooms/{room}/members فقط.
+      return Array.from(new Set(roomMembersByRoomCache[room] || []));
+    }
+
+    function renderRoomBanUsers() {
+      const room = document.getElementById('room-select').value;
+      const holder = document.getElementById('room-ban-list');
+      if (!room) {
+        holder.innerHTML = '<div class="meta">اختر غرفة أولاً.</div>';
+        return;
+      }
+      const q = document.getElementById('room-ban-search').value.trim().toLowerCase();
+      const rows = getActiveRoomMembers(room)
+        .map(uid => usersByIdCache[uid] || { uid, name:'' })
+        .filter(u => getUserName(u).toLowerCase().includes(q));
+      if (!rows.length) {
+        holder.innerHTML = '<div class="meta">لا يوجد مستخدمون داخل هذه الغرفة حالياً.</div>';
+        return;
+      }
+      holder.innerHTML = rows.map(u => {
+        const ban = roomBansCache[u.uid] || null;
+        const active = !!ban && (!Number(ban.expiresAt || 0) || Number(ban.expiresAt) > Date.now());
+        const reason = ban && ban.reason ? ` • السبب: ${escapeHTML(ban.reason)}` : '';
+        return `
+          <div class="item">
+            <div><b>${escapeHTML(getUserName(u))}</b></div>
+            <div class="meta">${escapeHTML(u.uid)}</div>
+            <div class="row" style="margin-top:8px;">
+              <select class="ban-duration">${durationOptionsHTML()}</select>
+              <input class="ban-custom" type="number" min="1" placeholder="دقائق إضافية">
+              <input class="ban-reason" type="text" placeholder="السبب">
+            </div>
+            <div class="row">
+              <button class="btn btn-danger" onclick="applyRoomBan('${u.uid}', this)">تبنيد من الغرفة</button>
+              <button class="btn btn-main" onclick="removeRoomBan('${u.uid}')">فك التبنيد</button>
+            </div>
+            <div class="status ${active ? 'banned' : 'ok'}">${active ? `🚫 محظور حتى: ${escapeHTML(labelUntil(ban.expiresAt))}${reason}` : '✅ غير محظور'}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function loadRoomBansForSelectedRoom() {
+      const room = document.getElementById('room-select').value;
+      roomBansCache = {};
+      if (!room) return Promise.resolve();
+      return db.ref(`rooms/${room}/bans`).once('value').then(s => {
+        roomBansCache = s.val() || {};
+      });
+    }
+
+    async function refreshAll() {
+      Promise.all([
+        db.ref('users').once('value'),
+        db.ref('bans').once('value'),
+        fetchRoomNamesShallow()
+      ]).then(async ([usersSnap, bansSnap, roomNames]) => {
+        const userMap = {};
+        const roomNamesSet = new Set(roomNames);
+        roomMembersByRoomCache = {};
+
+        usersSnap.forEach(c => {
+          const incoming = normalizeUser(c.key, c.val() || {});
+          upsertUserRecord(userMap, incoming);
+        });
+
+        await Promise.all(Array.from(roomNamesSet).map(room =>
+          db.ref(`rooms/${room}/members`).once('value').then(membersSnap => {
+            const members = membersSnap.val() && typeof membersSnap.val() === 'object' ? membersSnap.val() : {};
+            const memberIds = [];
+            Object.keys(members).forEach(uid => {
+              const cleanUid = String(uid || '').trim();
+              if (!cleanUid) return;
+              memberIds.push(cleanUid);
+              const incoming = normalizeUser(cleanUid, members[uid] || {}, members[uid]?.name || '');
+              upsertUserRecord(userMap, incoming);
+            });
+            roomMembersByRoomCache[room] = memberIds;
+          }).catch(() => {
+            roomMembersByRoomCache[room] = [];
+          })
+        ));
+
+        usersCache = Object.values(userMap);
+        usersCache.sort((a,b) => getUserName(a).localeCompare(getUserName(b), 'ar'));
+        usersByIdCache = {};
+        usersCache.forEach(u => { usersByIdCache[u.uid] = u; });
+
+        collectRoomsFromUsers(usersCache).forEach(room => roomNamesSet.add(room));
+        roomsCache = Array.from(roomNamesSet);
+        roomsCache.sort((a,b) => String(a).localeCompare(String(b), 'ar'));
+
+        chatBansCache = bansSnap.val() || {};
+
+        renderRoomSelect();
+        renderChatBanUsers();
+      }).catch(e => {
+        document.getElementById('chat-ban-list').innerHTML = `<div class="meta">تعذر التحميل: ${escapeHTML(e.message || 'خطأ')}</div>`;
+      });
+    }
+
+    document.getElementById('room-select').addEventListener('change', () => {
+      loadRoomBansForSelectedRoom().then(() => renderRoomBanUsers());
+    });
+
+    // منع تغيير الغرفة بالخطأ عند استخدام عجلة الماوس أثناء التمرير داخل الصفحة.
+    document.getElementById('room-select').addEventListener('wheel', (event) => {
+      event.preventDefault();
+    }, { passive: false });
+
+    refreshAll();
+  </script>
+</body>
+</html>
