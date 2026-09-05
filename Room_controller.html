@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Room Record Controller</title>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+  <style>
+    body{font-family:Tahoma,sans-serif;background:#10131b;color:#eef2ff;margin:0;padding:16px}
+    .card{max-width:1100px;margin:0 auto;background:#171c27;border:1px solid #2d3550;border-radius:12px;padding:14px}
+    h1{margin:0 0 12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+    select,button{padding:8px 12px;border-radius:8px;border:1px solid #36415e;background:#0f1420;color:#fff}
+    button{cursor:pointer;background:#4f7cff;border:none}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #2d3550;padding:8px;text-align:center}
+    th{background:#1f2635}
+    .ok{color:#7cf0a9}.off{color:#ffb7c3}.hint{color:#b7c2dd;font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎛️ التحكم الإجباري في تسجيلات الغرف</h1>
+    <div class="row">
+      <label for="roomSelect">الغرفة:</label>
+      <select id="roomSelect"></select>
+      <button onclick="loadRoomData()">تحميل بيانات الغرفة</button>
+      <button onclick="loadRooms()">تحديث الغرف</button>
+    </div>
+    <div class="row">
+      <label for="recordLimitSelect">الريكوردات:</label>
+      <select id="recordLimitSelect">
+        <option value="10" selected>آخر 10</option>
+        <option value="20">آخر 20</option>
+        <option value="30">آخر 30</option>
+        <option value="50">آخر 50</option>
+        <option value="100">آخر 100</option>
+      </select>
+      <label for="recordLimitInput">أو عدد مخصص:</label>
+      <input id="recordLimitInput" type="number" min="1" step="1" placeholder="مثال: 15" style="padding:8px 12px;border-radius:8px;border:1px solid #36415e;background:#0f1420;color:#fff;max-width:140px;">
+    </div>
+    <div id="roomStatus" class="hint">جاهز.</div>
+    <h3>👥 المستخدمون (متصل / غير متصل)</h3>
+    <table><thead><tr><th>الاسم</th><th>الحالة</th><th>آخر ظهور</th></tr></thead><tbody id="membersBody"></tbody></table>
+    <h3>🎤 التسجيلات + الفيديوهات + الملفات الصوتية (من الأقدم للأحدث)</h3>
+    <table><thead><tr><th>النوع</th><th>المرسل</th><th>الوقت</th><th>معاينة</th><th>تشغيل إجباري</th></tr></thead><tbody id="recordsBody"></tbody></table>
+  </div>
+<script>
+const firebaseConfig={apiKey:"AIzaSyAlim9FOvDcMqTJWINoBCHk3k6DNXS-jTo",databaseURL:"https://zeweil-chat-default-rtdb.europe-west1.firebasedatabase.app",projectId:"zeweil-chat"};
+firebase.initializeApp(firebaseConfig); const db=firebase.database();
+const roomSelect=document.getElementById('roomSelect');
+const roomStatus=document.getElementById('roomStatus');
+const recordLimitSelect=document.getElementById('recordLimitSelect');
+const recordLimitInput=document.getElementById('recordLimitInput');
+function fmt(ts){const n=Number(ts);if(!Number.isFinite(n)||n<=0)return '—';return new Date(n).toLocaleString('ar-EG');}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+async function fetchRoomNamesShallow(){
+  const endpoint=`${firebaseConfig.databaseURL}/rooms.json?shallow=true`;
+  const response=await fetch(endpoint,{cache:'no-store'});
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload=await response.json();
+  return Object.keys(payload||{});
+}
+async function loadRooms(){
+  roomStatus.textContent='جارِ تحميل قائمة الغرف...';
+  roomSelect.disabled=true;
+  try{
+    const names=await fetchRoomNamesShallow();
+    roomSelect.innerHTML='';
+    names.sort((a,b)=>a.localeCompare(b,'ar')).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;roomSelect.appendChild(o);});
+    roomStatus.textContent=`تم تحميل ${names.length} غرفة.`;
+  }catch(e){
+    roomStatus.textContent='تعذر تحميل الغرف، حاول مرة أخرى.';
+    alert('فشل تحميل الغرف: '+(e?.message||e));
+  }finally{
+    roomSelect.disabled=false;
+  }
+}
+
+function getRecordsLimit(){
+  const custom=Number(recordLimitInput.value);
+  if(Number.isFinite(custom)&&custom>0) return Math.floor(custom);
+  const preset=Number(recordLimitSelect.value||10);
+  if(Number.isFinite(preset)&&preset>0) return Math.floor(preset);
+  return 10;
+}
+
+async function loadRoomData(){
+  const room=roomSelect.value; if(!room) return;
+  const limit=getRecordsLimit();
+  roomStatus.textContent=`جارِ تحميل بيانات الغرفة وآخر ${limit} ريكورد...`;
+  const [membersSnap,usersSnap,msgSnap]=await Promise.all([db.ref(`rooms/${room}/members`).once('value'),db.ref('users').once('value'),db.ref(`rooms/${room}/messages`).limitToLast(limit).once('value')]);
+  const members=membersSnap.val()||{}; const users=usersSnap.val()||{}; const msgs=msgSnap.val()||{};
+  const ids=Object.keys(members); const membersBody=document.getElementById('membersBody'); membersBody.innerHTML='';
+  ids.forEach(uid=>{const u=users[uid]||members[uid]||{}; const tr=document.createElement('tr'); tr.innerHTML=`<td>${esc(u.name||('مستخدم-'+uid.slice(0,6)))}</td><td class="${u.online?'ok':'off'}">${u.online?'متصل':'غير متصل'}</td><td>${fmt(u.lastSeen)}</td>`; membersBody.appendChild(tr);});
+  if(!ids.length) membersBody.innerHTML='<tr><td colspan="3">لا يوجد أعضاء</td></tr>';
+
+  const rows=Object.entries(msgs).map(([k,v])=>({k,...(v||{})})).map(item=>{
+    const mediaType=String(item.mediaType||item.type||'').toLowerCase();
+    const isRecord=!!item.audioData;
+    const isAudioFile=mediaType==='audio' || (!isRecord && !!item.audioUrl) || (mediaType==='audio' && !!item.message);
+    const isVideo=mediaType==='video' || !!item.videoData || !!item.videoUrl;
+    const include=isRecord || isAudioFile || isVideo;
+    return { ...item, include, isRecord, isAudioFile, isVideo };
+  }).filter(m=>m.include).sort((a,b)=>Number(a.timestamp||0)-Number(b.timestamp||0));
+  const recordsBody=document.getElementById('recordsBody'); recordsBody.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    let mediaHtml='—';
+    let typeLabel='—';
+    let forceBtn='—';
+    if(r.isVideo){
+      const videoSrc=r.videoData||r.videoUrl||r.message||'';
+      mediaHtml=`<video controls preload="metadata" style="max-width:220px" src="${esc(videoSrc)}"></video>`;
+      typeLabel='🎥 فيديو';
+    }else{
+      const audioSrc=r.audioData||r.audioUrl||r.message||'';
+      mediaHtml=`<audio controls preload="metadata" src="${esc(audioSrc)}"></audio>`;
+      typeLabel=r.isRecord?'🎤 ريكورد':'🎵 ملف صوتي';
+      forceBtn=`<button type="button" onclick="forcePlay('${esc(room)}','${esc(r.k)}')">تشغيل إجباري</button>`;
+    }
+    tr.innerHTML=`<td>${typeLabel}</td><td>${esc(r.name||'—')}</td><td>${fmt(r.timestamp)}</td><td>${mediaHtml}</td><td>${forceBtn}</td>`;
+    recordsBody.appendChild(tr);
+  });
+  if(!rows.length) recordsBody.innerHTML='<tr><td colspan="5">لا توجد وسائط (ريكورد/فيديو/صوت) داخل النطاق المطلوب</td></tr>';
+  roomStatus.textContent=`تم تحميل ${ids.length} عضو و ${rows.length} عنصر وسائط.`;
+}
+function forcePlay(room,key){
+  const payload={commandId:`cmd-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,messageKey:key,requestedAt:Date.now(),requestedBy:'admin-panel'};
+  db.ref(`rooms/${room}/forcedPlayback`).set(payload).then(()=>alert('تم إرسال أمر التشغيل الإجباري للمتصلين في الغرفة'));
+}
+loadRooms();
+</script>
+</body>
+</html>
