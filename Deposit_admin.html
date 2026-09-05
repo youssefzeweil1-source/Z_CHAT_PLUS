@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>متابعة طلبات الإيداع</title>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
+    <style>
+        :root { --main:#5b8cff; --pink:#ff7aa2; --green:#25c5a8; --gold:#ffb454; --bg:#0f1117; --card:#171b24; --border:#2b3342; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; font-family:Tahoma, Arial, sans-serif; color:#eef1f7; background:radial-gradient(900px 600px at 10% -10%, rgba(91,140,255,.22), transparent), radial-gradient(800px 600px at 105% 0, rgba(255,122,162,.18), transparent), var(--bg); padding:22px; }
+        .topbar { max-width:1180px; margin:0 auto 18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+        h1 { margin:0; font-size:clamp(1.45rem, 4vw, 2.25rem); background:linear-gradient(90deg,var(--main),var(--pink),var(--green),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+        .nav { display:flex; gap:8px; flex-wrap:wrap; }
+        .nav a, .nav button { border:0; border-radius:999px; padding:10px 14px; font-weight:bold; cursor:pointer; text-decoration:none; }
+        .nav a { color:#081018; background:linear-gradient(135deg,var(--green),var(--main)); }
+        .nav button { color:#fff; background:#30394c; }
+        .stats { max-width:1180px; margin:0 auto 18px; display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; }
+        .stat { background:rgba(23,27,36,.88); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow:0 12px 30px rgba(0,0,0,.24); }
+        .stat span { display:block; color:#9ca8bf; font-size:.82rem; margin-bottom:5px; }
+        .stat strong { font-size:1.35rem; direction:ltr; display:block; }
+        .sections { max-width:1180px; margin:0 auto; display:grid; grid-template-columns:1fr; gap:18px; }
+        .section { background:rgba(15,20,31,.62); border:1px solid #273348; border-radius:20px; padding:14px; }
+        .section h2 { margin:0 0 12px; font-size:1.05rem; color:#fff; }
+        .list { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; }
+        .empty { color:#9ca8bf; text-align:center; padding:18px; border:1px dashed #38445c; border-radius:14px; }
+        .request-card { background:linear-gradient(180deg, rgba(255,255,255,.04), transparent), var(--card); border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow:0 14px 30px rgba(0,0,0,.28); }
+        .request-card.pending { border-color:rgba(255,180,84,.65); }
+        .request-card.approved { border-color:rgba(37,197,168,.65); }
+        .request-card.rejected { border-color:rgba(255,122,162,.65); }
+        .row { display:flex; justify-content:space-between; gap:10px; margin:8px 0; color:#d7e2f5; }
+        .row b { color:#fff; }
+        .amount { color:#ffd08a; font-size:1.05rem; font-weight:bold; }
+        .receipt { width:100%; max-height:260px; object-fit:contain; background:#0f1520; border:1px solid #33415a; border-radius:12px; margin:10px 0; cursor:zoom-in; }
+        .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+        .actions button { flex:1; min-width:110px; border:0; border-radius:11px; padding:10px; font-weight:bold; cursor:pointer; }
+        .approve { background:linear-gradient(135deg,#7ee787,var(--green)); color:#07120e; }
+        .reject { background:linear-gradient(135deg,#ff9fb6,var(--pink)); color:#210912; }
+        .copy { background:#30394c; color:#fff; }
+        .status-note { color:#9ca8bf; font-size:.82rem; line-height:1.6; margin-top:8px; }
+        .xp-row { color:#9ee7c8; font-size:.86rem; background:rgba(37,197,168,.08); border:1px solid rgba(37,197,168,.22); border-radius:10px; padding:8px; margin:8px 0; }
+        .viewer { position:fixed; inset:0; background:rgba(0,0,0,.9); display:none; align-items:center; justify-content:center; padding:18px; z-index:50; }
+        .viewer.active { display:flex; }
+        .viewer img { max-width:96vw; max-height:92vh; border-radius:12px; background:#fff; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <h1>📋 متابعة وإدارة طلبات الإيداع</h1>
+        <nav class="nav">
+            <a href="store.html">رجوع للمتجر</a>
+            <a href="Test.html">رجوع للشات</a>
+            <button type="button" onclick="refreshRequests()">تحديث</button>
+        </nav>
+    </header>
+
+    <div class="stats">
+        <div class="stat"><span>طلبات معلقة</span><strong id="pending-count">0</strong></div>
+        <div class="stat"><span>طلبات مقبولة</span><strong id="approved-count">0</strong></div>
+        <div class="stat"><span>طلبات مرفوضة</span><strong id="rejected-count">0</strong></div>
+        <div class="stat"><span>قيمة المعلق</span><strong id="pending-total">0 EGP</strong></div>
+    </div>
+
+    <main class="sections">
+        <section class="section">
+            <h2>🟡 طلبات إيداع منتظرة</h2>
+            <div id="pending-list" class="list"></div>
+        </section>
+        <section class="section">
+            <h2>✅ طلبات تمت الموافقة عليها</h2>
+            <div id="approved-list" class="list"></div>
+        </section>
+        <section class="section">
+            <h2>❌ طلبات مرفوضة</h2>
+            <div id="rejected-list" class="list"></div>
+        </section>
+    </main>
+
+    <div id="image-viewer" class="viewer" onclick="closeViewer()"><img id="viewer-img" alt="إيصال الدفع"></div>
+
+<script>
+    const firebaseConfig = { apiKey: "AIzaSyAlim9FOvDcMqTJWINoBCHk3k6DNXS-jTo", databaseURL: "https://zeweil-chat-default-rtdb.europe-west1.firebasedatabase.app", projectId: "zeweil-chat" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let requestsRef = null;
+    const LEVEL_XP_REQUIREMENTS = [0, 50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750, 3300, 3900, 4550, 5250, 6000, 6800, 7650, 8550, 9500];
+    const XP_PER_EGP = 0.16;
+
+    function formatDate(timestamp) {
+        if (!timestamp) return '—';
+        return new Date(timestamp).toLocaleString('ar-EG', { dateStyle:'medium', timeStyle:'short' });
+    }
+
+    function calculateLevel(xpValue = 0) {
+        const xp = Math.max(0, Number(xpValue) || 0);
+        let level = 1;
+        for (let i = 0; i < LEVEL_XP_REQUIREMENTS.length; i++) { if (xp >= LEVEL_XP_REQUIREMENTS[i]) level = i + 1; }
+        return Math.min(20, level);
+    }
+
+    function calculatePurchaseXp(amount = 0) { return Math.max(1, Math.round((Number(amount) || 0) * XP_PER_EGP)); }
+
+    async function addXpToUser(uid, amount, source, meta = {}) {
+        const xpToAdd = calculatePurchaseXp(amount);
+        const snap = await db.ref(`users/${uid}/xp`).once('value');
+        const nextXp = Math.max(0, Number(snap.val() || 0)) + xpToAdd;
+        const nextLevel = calculateLevel(nextXp);
+        const key = db.ref().push().key;
+        await db.ref().update({
+            [`users/${uid}/xp`]: nextXp,
+            [`users/${uid}/level`]: nextLevel,
+            [`users/${uid}/xpHistory/${key}`]: { source, xp: xpToAdd, amount: Number(amount) || 0, ...meta, createdAt: firebase.database.ServerValue.TIMESTAMP }
+        });
+        return { xpToAdd, nextXp, nextLevel };
+    }
+
+    function escapeHtml(value = '') {
+        return String(value).replace(/[&<>"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[char]));
+    }
+
+    function requestCard(id, request) {
+        const status = request.status || 'pending';
+        const actions = status === 'pending' ? `
+            <div class="actions">
+                <button class="approve" type="button" onclick="approveRequest('${id}')">قبول وإضافة الرصيد</button>
+                <button class="reject" type="button" onclick="rejectRequest('${id}')">رفض</button>
+                <button class="copy" type="button" onclick="copyPhone('${escapeHtml(request.payerPhone || '')}')">نسخ الرقم</button>
+            </div>` : `<div class="status-note">تمت المراجعة بواسطة: ${escapeHtml(request.reviewedBy || '—')}<br>تاريخ المراجعة: ${formatDate(request.reviewedAt)}</div>`;
+        return `
+            <article class="request-card ${escapeHtml(status)}">
+                <div class="row"><span>المستخدم</span><b>${escapeHtml(request.userName || 'مستخدم')}</b></div>
+                <div class="row"><span>UID</span><b style="direction:ltr; font-size:.74rem; overflow-wrap:anywhere;">${escapeHtml(request.uid || '—')}</b></div>
+                <div class="row"><span>الحزمة</span><b>${Number(request.coins || 0).toLocaleString('en-US')} عملة</b></div>
+                <div class="row"><span>المبلغ المطلوب</span><b class="amount">${Number(request.price || 0).toLocaleString('en-US')} جنيه</b></div>
+                <div class="xp-row">XP المتوقع: ${calculatePurchaseXp(request.price).toLocaleString('en-US')} • المستوى بعد الموافقة: ${request.approvedLevel ? escapeHtml(request.approvedLevel) : 'يُحسب عند القبول'}</div>
+                <div class="row"><span>رقم التحويل</span><b style="direction:ltr;">${escapeHtml(request.payerPhone || '—')}</b></div>
+                <div class="row"><span>تاريخ الطلب</span><b>${formatDate(request.createdAt)}</b></div>
+                <img class="receipt" src="${escapeHtml(request.receiptImage || '')}" alt="صورة إيصال التحويل" onclick="openViewer(this.src)">
+                ${actions}
+            </article>`;
+    }
+
+    function renderRequests(snapshot) {
+        const data = snapshot.val() || {};
+        const groups = { pending: [], approved: [], rejected: [] };
+        Object.entries(data).forEach(([id, request]) => {
+            const status = request?.status || 'pending';
+            if (!groups[status]) groups[status] = [];
+            groups[status].push([id, request || {}]);
+        });
+        Object.values(groups).forEach(group => group.sort((a, b) => Number(b[1].createdAt || 0) - Number(a[1].createdAt || 0)));
+        document.getElementById('pending-list').innerHTML = groups.pending.length ? groups.pending.map(([id, request]) => requestCard(id, request)).join('') : '<div class="empty">لا توجد طلبات معلقة الآن.</div>';
+        document.getElementById('approved-list').innerHTML = groups.approved.length ? groups.approved.map(([id, request]) => requestCard(id, request)).join('') : '<div class="empty">لا توجد طلبات مقبولة بعد.</div>';
+        document.getElementById('rejected-list').innerHTML = groups.rejected.length ? groups.rejected.map(([id, request]) => requestCard(id, request)).join('') : '<div class="empty">لا توجد طلبات مرفوضة.</div>';
+        document.getElementById('pending-count').textContent = groups.pending.length.toLocaleString('en-US');
+        document.getElementById('approved-count').textContent = groups.approved.length.toLocaleString('en-US');
+        document.getElementById('rejected-count').textContent = groups.rejected.length.toLocaleString('en-US');
+        const pendingTotal = groups.pending.reduce((sum, [, request]) => sum + Number(request.price || 0), 0);
+        document.getElementById('pending-total').textContent = `${pendingTotal.toLocaleString('en-US')} EGP`;
+    }
+
+    function refreshRequests() {
+        if (!requestsRef) requestsRef = db.ref('depositRequests');
+        requestsRef.once('value').then(renderRequests);
+    }
+
+    function getRequestCoins(request = {}) {
+        const explicitCoins = Number(request.coins || 0);
+        if (explicitCoins > 0) return explicitCoins;
+
+        const itemIdCoins = { c1:50, c2:150, c3:350, c4:750, c5:1000 };
+        if (request.itemId && itemIdCoins[request.itemId]) return itemIdCoins[request.itemId];
+
+        const itemNameMatch = String(request.itemName || '').match(/\d+/);
+        return itemNameMatch ? Number(itemNameMatch[0]) : 0;
+    }
+
+    async function approveRequest(id) {
+        if (!confirm('تأكيد قبول الطلب وإضافة العملات لرصيد المستخدم؟')) return;
+        const requestSnap = await db.ref(`depositRequests/${id}`).once('value');
+        const request = requestSnap.val();
+        if (!request || request.status !== 'pending') { alert('الطلب غير متاح أو تمت مراجعته بالفعل.'); return; }
+        if (!request.uid) { alert('لا يمكن قبول الطلب لأن معرف المستخدم غير موجود.'); return; }
+
+        const coinsToAdd = getRequestCoins(request);
+        if (coinsToAdd <= 0) { alert('لا يمكن قبول الطلب لأن عدد العملات غير موجود أو غير صحيح.'); return; }
+
+        const reviewer = firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || 'admin';
+        const updates = {};
+        updates[`depositRequests/${id}/status`] = 'approved';
+        updates[`depositRequests/${id}/coins`] = coinsToAdd;
+        updates[`depositRequests/${id}/reviewedAt`] = firebase.database.ServerValue.TIMESTAMP;
+        const xpResult = await addXpToUser(request.uid, Number(request.price || 0), 'deposit_approved', { requestId:id, itemId:request.itemId || '', itemName:request.itemName || '' });
+        updates[`depositRequests/${id}/reviewedBy`] = reviewer;
+        updates[`depositRequests/${id}/xpAwarded`] = xpResult.xpToAdd;
+        updates[`depositRequests/${id}/approvedLevel`] = xpResult.nextLevel;
+        updates[`users/${request.uid}/wallet/zCoins`] = firebase.database.ServerValue.increment(coinsToAdd);
+        updates[`users/${request.uid}/walletHistory/${id}`] = {
+            type: 'deposit',
+            coins: coinsToAdd,
+            price: Number(request.price || 0),
+            itemName: request.itemName || `${coinsToAdd} عملة`,
+            itemImage: request.itemImage || `${coinsToAdd}.png`,
+            payerPhone: request.payerPhone || '',
+            status: 'approved',
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            requestId: id
+        };
+        await db.ref().update(updates);
+        alert(`تم قبول الطلب وإضافة العملات و ${xpResult.xpToAdd} XP.`);
+    }
+
+    async function rejectRequest(id) {
+        const reason = prompt('سبب الرفض (اختياري):') || '';
+        const reviewer = firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || 'admin';
+        await db.ref(`depositRequests/${id}`).update({
+            status: 'rejected',
+            rejectionReason: reason,
+            reviewedAt: firebase.database.ServerValue.TIMESTAMP,
+            reviewedBy: reviewer
+        });
+        alert('تم رفض الطلب.');
+    }
+
+    function copyPhone(phone) {
+        navigator.clipboard?.writeText(phone).then(() => alert('تم نسخ الرقم.')).catch(() => alert(phone));
+    }
+
+    function openViewer(src) {
+        document.getElementById('viewer-img').src = src;
+        document.getElementById('image-viewer').classList.add('active');
+    }
+
+    function closeViewer() { document.getElementById('image-viewer').classList.remove('active'); }
+
+    firebase.auth().onAuthStateChanged(() => {
+        if (requestsRef) requestsRef.off();
+        requestsRef = db.ref('depositRequests');
+        requestsRef.on('value', renderRequests);
+    });
+</script>
+</body>
+</html>
