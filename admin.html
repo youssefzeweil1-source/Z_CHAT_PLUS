@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <title>إدارة الغرف والمهملات - ZEWEIL Chat</title>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-database-compat.js"></script>
+  <style>
+    :root { --main-color: #5b8cff; --main-color-2:#ff7aa2; --accent-3:#25c5a8; --accent-4:#ffb454; --bg-dark: #0f1117; --panel-bg: #171b24; --text-gray: #9ca3b3; --card-border:#2b3342; }
+    * { box-sizing: border-box; }
+    body { background: radial-gradient(1200px 700px at -10% -20%, rgba(255,122,162,0.18), transparent), radial-gradient(900px 700px at 110% -10%, rgba(91,140,255,0.20), transparent), radial-gradient(900px 600px at 50% 120%, rgba(37,197,168,0.14), transparent), var(--bg-dark); color: #eef1f7; font-family: Tahoma, sans-serif; margin: 0; direction: rtl; padding: 20px 14px 28px; }
+    .admin-wrapper { width: min(1120px, 100%); margin: 0 auto; }
+    .page-title { background: linear-gradient(90deg, var(--main-color), var(--main-color-2), var(--accent-3), var(--accent-4)); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 2px 14px rgba(0,0,0,0.35); font-size: clamp(1.4rem, 4.2vw, 1.9rem); margin: 8px 0 14px; letter-spacing: 1px; text-align: center; }
+    .action-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    h2 { color: #f5f7fb; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin: 0 0 4px; font-size: 1.2rem; }
+    .section-title { margin-top: 28px; }
+    .section-hint { color: var(--text-gray); font-size: 0.92em; margin: 6px 0 0; }
+    .panel { margin-top: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--panel-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 16px; box-shadow: 0 14px 36px rgba(0,0,0,0.28); }
+
+    button { padding: 9px 14px; margin: 0; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-green { background: linear-gradient(135deg, #65ff9a, #2bc36d); color: #062712; }
+    .btn-red { background: linear-gradient(135deg, #ff6f91, #e5395f); color: #fff; }
+    .btn-blue { background: linear-gradient(135deg, #5b8cff, #7468ff); color: #fff; }
+    .btn-orange { background: linear-gradient(135deg, #ffc262, #ff9f43); color: #271b04; }
+    .btn-gray { background: #2b3342; color: #f0f3f9; }
+    .danger-note { color: #ffb4c2; font-size: 0.86rem; margin-top: 8px; }
+    .user-meta { color:#9ca3b3; font-size:0.82rem; display:block; margin-top:4px; word-break:break-all; }
+    .tiny-note { color:#9ca3b3; font-size:0.82rem; margin-top:6px; }
+    .mini-btn { padding:6px 10px; border-radius:8px; font-size:0.82rem; }
+    .mini-btn.tiny { font-size:0.72rem; padding:5px 8px; }
+    .visibility-status { display:inline-flex; align-items:center; justify-content:center; padding:3px 8px; border-radius:999px; font-size:0.74rem; font-weight:bold; }
+    .visibility-status.visible { background:rgba(35,197,128,0.16); color:#7effb4; border:1px solid rgba(35,197,128,0.45); }
+    .visibility-status.hidden { background:rgba(255,122,162,0.18); color:#ffb4c9; border:1px solid rgba(255,122,162,0.45); }
+    .friends-preview-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .friend-preview-item { display:flex; align-items:center; gap:10px; background:#141b28; border:1px solid #2f3a50; border-radius:10px; padding:8px 10px; }
+    .friend-preview-avatar { width:42px; height:42px; border-radius:50%; overflow:hidden; background:#2a3447; border:1px solid #3b4d6a; display:flex; align-items:center; justify-content:center; color:#cfe0ff; font-weight:bold; flex-shrink:0; }
+    .friend-preview-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .friend-preview-meta { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
+    .friend-preview-meta .name { color:#f3f7ff; font-weight:bold; }
+    .friend-preview-meta .sub { color:#a8b6cf; font-size:0.8rem; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; background: rgba(255,255,255,0.01); overflow: hidden; border-radius: 12px; }
+    th, td { border: 1px solid #2b3342; padding: 11px; text-align: center; }
+    th { background: #1d2432; color: #9ec1ff; }
+    tr:hover { background: rgba(91,140,255,0.08); }
+    a { color: #8fc4ff; }
+
+    .modal { position: fixed; inset: 0; background: rgba(3,6,10,0.86); display: none; justify-content: center; align-items: flex-start; z-index: 9999; padding: 20px; overflow-y:auto; backdrop-filter: blur(3px); }
+    .modal-content { background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--panel-bg); border: 1px solid var(--card-border); padding: 20px; border-radius: 14px; max-width: 920px; width: 100%; max-height: 88vh; overflow: hidden; margin-top: 24px; display:flex; flex-direction:column; min-height: 0; box-shadow: 0 14px 36px rgba(0,0,0,0.35); }
+    .messages-table-wrap { flex: 1; min-height: 0; max-height: 62vh; overflow-y: auto; overflow-x: auto; margin-top: 8px; border: 1px solid #2b3342; border-radius: 12px; }
+    #messagesTable { margin-top: 0; border-radius: 0; }
+    .load-older-admin-row { display:flex; justify-content:center; margin:10px 0; }
+    .friend-chat-admin-message { white-space:pre-wrap; word-break:break-word; max-width:460px; margin:0 auto; line-height:1.5; }
+    .close-btn { background: linear-gradient(135deg, #ff6f91, #e5395f); color: white; cursor: pointer; border-radius: 50%; width: 32px; height: 32px; border: none; font-size: 18px; line-height: 1; }
+    textarea { width: 100%; height: 60px; background: #111824; border: 1px solid #323e52; color: white; padding: 8px; border-radius: 8px; }
+    .deleted-chat-list { display:flex; flex-direction:column; gap:10px; }
+    .deleted-item { background:#1b1f25; border:1px solid #2d3440; border-radius:14px; padding:10px 12px; max-width:100%; }
+    .deleted-item.mine { align-self:flex-end; background:#153520; border-color:#1f6f3b; }
+    .deleted-item.other { align-self:flex-start; background:#232730; border-color:#353b47; }
+    .deleted-item .meta { font-size:0.8rem; color:#bfc5d1; display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .deleted-item .content-text { white-space:pre-wrap; word-break:break-word; }
+    .deleted-item img { max-width:100%; border-radius:8px; margin-top:6px; border:1px solid #333; }
+    .deleted-item audio, .deleted-item video { width:100%; margin-top:6px; border-radius:8px; }
+    .deleted-item .media-link { display:inline-block; margin-top:8px; color:#8fc4ff; word-break:break-all; }
+    #deletedModalBody { flex:1; min-height:0; max-height:66vh; overflow-y:auto; padding-left:2px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .admin-msg-content { display:flex; flex-direction:column; align-items:flex-start; gap:8px; text-align:right; max-width:420px; margin:0 auto; }
+    .admin-msg-text { white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+    .admin-msg-media { max-width:100%; border-radius:10px; border:1px solid #37435a; background:#0f141f; }
+    .admin-msg-media.image, .admin-msg-media.gif { max-height:240px; object-fit:cover; }
+    .admin-msg-media.video { max-height:260px; }
+    .admin-msg-media.audio { width:320px; max-width:100%; }
+    .system-send-row { display:flex; flex-wrap:wrap; gap:8px; margin: 10px 0 12px; align-items:center; }
+    #system-message-input { flex:1; min-width:220px; background:#111824; border:1px solid #323e52; color:#fff; padding:8px; border-radius:8px; }
+    #admin-image-viewer-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.92); display:none; align-items:center; justify-content:center; z-index:10020; padding:20px; }
+    #admin-image-viewer-img { max-width:min(96vw, 1100px); max-height:88vh; border-radius:10px; box-shadow:0 0 24px rgba(0,0,0,0.7); }
+    #admin-image-viewer-close { position:absolute; top:18px; left:18px; background:#222; color:#fff; border:1px solid #666; border-radius:8px; padding:8px 12px; cursor:pointer; }
+    #admin-image-viewer-hq { position:absolute; top:18px; left:82px; background:#75ff9e; color:#05130a; border:1px solid #4ea468; border-radius:8px; padding:8px 12px; cursor:pointer; font-weight:bold; }
+    .limit-modal-content { max-width: 460px; text-align: center; }
+    .limit-modal-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:14px; }
+    .limit-choice-btn { min-width:130px; font-size:0.92rem; border:1px solid rgba(255,255,255,0.12); box-shadow:0 8px 18px rgba(0,0,0,0.24); }
+    .limit-choice-btn.all { background:linear-gradient(135deg, #4ed8ff, #6d88ff); color:#06172a; }
+    .limit-choice-btn.last450, .limit-choice-btn.last50 { background:linear-gradient(135deg, #7dffb7, #3bcf8f); color:#062415; }
+    .limit-choice-btn.last400, .limit-choice-btn.last40 { background:linear-gradient(135deg, #ffe38a, #ffb75f); color:#2e1c05; }
+    .limit-choice-btn.last300, .limit-choice-btn.last30 { background:linear-gradient(135deg, #ffc4f2, #ff83bf); color:#2f0820; }
+    .limit-choice-btn.last200, .limit-choice-btn.last20 { background:linear-gradient(135deg, #b0d0ff, #7ea2ff); color:#0d1732; }
+    .limit-choice-btn.last150, .limit-choice-btn.last10 { background:linear-gradient(135deg, #e4e4e4, #b4bac8); color:#121722; }
+    .limit-choice-btn.last100 { background:linear-gradient(135deg, #d8c4ff, #9e7dff); color:#170d32; }
+    .limit-modal-custom { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid #2b3342; }
+    #customRoomLoadLimit { width:160px; background:#111824; border:1px solid #323e52; color:#fff; padding:9px 10px; border-radius:10px; text-align:center; }
+    .limit-modal-subtitle { color:#bfcae0; margin:8px 0 2px; font-size:0.92rem; }
+    .admin-quick-nav { position:sticky; top:0; z-index:50; background:rgba(15,17,23,.9); border:1px solid #2b3342; border-radius:12px; padding:10px; display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; backdrop-filter:blur(6px); }
+    .coupon-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; align-items:end; margin-top:10px; }
+    .coupon-form input { width:100%; background:#111824; border:1px solid #323e52; color:#fff; padding:9px; border-radius:8px; }
+  </style>
+</head>
+<body>
+
+  <div class="admin-wrapper">
+  <h1 class="page-title">ℤ𝔼𝕎𝔼𝕀𝕃 ℂℍ𝔸𝕋 𝕃𝕀𝕋𝔼 • لوحة الإدارة</h1>
+  <div class="panel">
+  <div class="admin-quick-nav"><button onclick="scrollToAdminSection('giftCouponsSection')" class="btn-orange">🎁 أكواد خصم الهدايا</button><button onclick="scrollToAdminSection('usersSection')" class="btn-blue">👥 المستخدمين</button><button onclick="scrollToAdminSection('friendsSection')" class="btn-blue">🤝 الأصدقاء</button></div>
+  <h2>🛠️ إدارة الغرف - ZEWEIL Chat</h2>
+  <div class="action-row">
+  <button onclick="loadRooms()" class="btn-green">📥 تحديث قائمة الغرف</button>
+  <button onclick="createNewRoom()" class="btn-blue">➕ إنشاء غرفة جديدة</button>
+  <button onclick="window.open('room controller.html', '_blank')" class="btn-orange">🎛️ Room Controller</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>اسم الغرفة</th>
+        <th>الحالة</th>
+        <th>الإجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="roomTable"></tbody>
+  </table>
+
+  <h2 class="section-title">🗑️ سلة مهملات الرسائل (المحذوف مؤقتاً)</h2>
+  <p class="section-hint">هنا تجد الغرف التي تم مسح رسائلها، يمكنك استعادتها للدردشة مرة أخرى.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>اسم الغرفة</th>
+        <th>تاريخ النقل للمهملات</th>
+        <th>الإجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="trashTable">
+        <tr><td colspan="3">اضغط على "تحديث قائمة الغرف" لعرض المهملات</td></tr>
+    </tbody>
+  </table>
+  <h2 class="section-title">🧾 المحذوفات الفردية (رسالة برسالة)</h2>
+  <p class="section-hint">هنا تظهر فقط الرسائل التي حُذفت بشكل فردي من داخل الدردشة.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>اسم الغرفة</th>
+        <th>عدد الرسائل المحذوفة</th>
+        <th>الإجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="individualDeletedTable">
+      <tr><td colspan="3">اضغط على "تحديث قائمة الغرف" لعرض المحذوفات الفردية</td></tr>
+    </tbody>
+  </table>
+
+
+  <h2 class="section-title" id="giftCouponsSection">🎁 أكواد خصم هدايا الأصدقاء</h2>
+  <p class="section-hint">أنشئ كود خصم يستخدمه المستخدم عند إرسال توثيق لصديقه من زر 🎁 إرسال هدية. الكوبون لا يخصم إرسال العملات، وكل مستخدم يقدر يستخدم الكوبون مرة واحدة فقط.</p>
+  <div class="coupon-form">
+    <label>الكود<input id="giftCouponCode" type="text" placeholder="مثال: GIFT20"></label>
+    <label>نسبة الخصم %<input id="giftCouponPercent" type="number" min="1" max="90" step="1" placeholder="20"></label>
+    <label>ينتهي بعد كام يوم<input id="giftCouponDays" type="number" min="0" step="1" placeholder="0 = بدون انتهاء"></label>
+    <label>حد الاستخدام (عدد الأشخاص)<input id="giftCouponMaxUses" type="number" min="1" step="1" placeholder="مثال: 10"></label>
+    <button onclick="saveGiftCoupon()" class="btn-green">💾 حفظ الكود</button>
+    <button onclick="loadGiftCoupons()" class="btn-blue">🔄 تحديث الأكواد</button>
+  </div>
+  <table>
+    <thead><tr><th>الكود</th><th>الخصم</th><th>الاستخدام</th><th>الحالة</th><th>الانتهاء</th><th>الإجراءات</th></tr></thead>
+    <tbody id="giftCouponsTable"><tr><td colspan="6">اضغط تحديث الأكواد لعرضها</td></tr></tbody>
+  </table>
+
+  <h2 class="section-title" id="usersSection">👥 قسم المستخدمين</h2>
+  <p class="section-hint">اعرض كل المستخدمين المسجلين داخل قاعدة البيانات، واحذف أي مستخدم أو امنحه محاولة واحدة إضافية لتغيير الاسم من لوحة الأدمن.</p>
+  <div class="action-row"><button onclick="loadAllUsers()" class="btn-blue">👥 عرض جميع المستخدمين</button></div>
+  <p class="danger-note">ملاحظة: الحذف هنا يزيل بيانات المستخدم من قاعدة البيانات الحالية ولا يضمن حذف حساب Firebase Authentication نفسه.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>المستخدم</th>
+        <th>الحالة</th>
+        <th>البيانات</th>
+        <th>الإجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="usersTable">
+      <tr><td colspan="4">اضغط على "عرض جميع المستخدمين" لتحميل القائمة</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title" id="friendsSection">🤝 أصدقاء المستخدمين + البروفايل</h2>
+  <p class="section-hint">يعرض قائمة أصدقاء كل مستخدم مع بيانات البروفايل الأساسية (الصورة، الحالة، النبذة، والغرفة الحالية).</p>
+  <div class="action-row"><button onclick="loadUsersFriendsProfiles()" class="btn-blue">🤝 تحديث قائمة الأصدقاء</button></div>
+  <table>
+    <thead>
+      <tr>
+        <th>المستخدم</th>
+        <th>عدد الأصدقاء</th>
+        <th>معاينة</th>
+      </tr>
+    </thead>
+    <tbody id="userFriendsTable">
+      <tr><td colspan="3">اضغط على "تحديث قائمة الأصدقاء" لتحميل البيانات</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">💬 محادثات الأصدقاء الخاصة</h2>
+  <p class="section-hint">يعرض محادثات الأصدقاء المحفوظة بدون تحميل كل الرسائل؛ افتح آخر الرسائل ثم استخدم زر عرض الرسائل الأقدم عند الحاجة.</p>
+  <div class="action-row"><button onclick="loadFriendChatsAdmin()" class="btn-blue">💬 تحديث محادثات الأصدقاء</button></div>
+  <table>
+    <thead>
+      <tr>
+        <th>المحادثة</th>
+        <th>آخر رسالة</th>
+        <th>الإجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="friendChatsTable">
+      <tr><td colspan="3">اضغط على "تحديث محادثات الأصدقاء" لتحميل البيانات</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">🧭 الغرف التي دخلها كل مستخدم</h2>
+  <p class="section-hint">يعرض كل الغرف التي دخلها المستخدم وتاريخ آخر دخول لكل غرفة.</p>
+  <div class="action-row"><button onclick="loadUsersRoomsHistory()" class="btn-blue">🧭 تحديث سجل الغرف</button></div>
+  <table>
+    <thead>
+      <tr>
+        <th>المستخدم</th>
+        <th>عدد الغرف</th>
+        <th>الغرف</th>
+      </tr>
+    </thead>
+    <tbody id="userRoomsHistoryTable">
+      <tr><td colspan="3">اضغط على "تحديث سجل الغرف" لتحميل البيانات</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">📍 قسم المواقع</h2>
+  <p class="section-hint">يعرض آخر موقع دقيق للمستخدمين الذين وافقوا على إذن الموقع.</p>
+  <div class="action-row"><button onclick="loadUserLocations()" class="btn-blue">📍 تحديث المواقع</button></div>
+  <table>
+    <thead>
+      <tr>
+        <th>المستخدم</th>
+        <th>خط العرض</th>
+        <th>خط الطول</th>
+        <th>الدقة (متر)</th>
+        <th>آخر تحديث</th>
+        <th>الخريطة</th>
+      </tr>
+    </thead>
+    <tbody id="locationTable">
+      <tr><td colspan="6">اضغط على "تحديث المواقع" لعرض بيانات المواقع</td></tr>
+    </tbody>
+  </table>
+
+  </div>
+
+  <div id="deletedModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="closeDeletedModal()">×</button>
+      <h3>المحذوفات الفردية - الغرفة: <span id="deletedModalRoom"></span></h3>
+      <div id="deletedModalBody"></div>
+    </div>
+  </div>
+
+  <div id="roomModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="closeModal()">×</button>
+      <h3>محتوى الغرفة: <span id="modalRoomName"></span></h3>
+      <h4>الرسائل الحالية</h4>
+      <div class="system-send-row">
+        <input id="system-message-input" type="text" placeholder="اكتب رسالة نظام لهذه الغرفة..." />
+        <button onclick="sendSystemMessagePrompt()" class="btn-blue">📢 إرسال رسالة نظام</button>
+      </div>
+      <div class="action-row" style="margin-top:8px; margin-bottom:10px; align-items:center;">
+        <input id="bulk-delete-count" type="number" min="1" step="1" placeholder="عدد آخر الرسائل" style="width:170px; background:#111824; border:1px solid #323e52; color:#fff; padding:8px; border-radius:8px;" />
+        <button onclick="deleteLastMessagesPrompt()" class="btn-orange">🧹 حذف آخر عدد</button>
+        <span class="tiny-note">اكتب العدد وسيتم حذف آخر الرسائل من الغرفة المفتوحة.</span>
+      </div>
+      <div class="messages-table-wrap">
+      <table id="messagesTable">
+        <thead>
+          <tr>
+            <th>المرسل</th>
+            <th>الرسالة</th>
+            <th>الوقت</th>
+            <th>الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="roomLoadLimitModal" class="modal">
+    <div class="modal-content limit-modal-content">
+      <button class="close-btn" onclick="closeRoomLoadLimitModal()">×</button>
+      <h3>👁️ اختيار طريقة عرض الرسائل</h3>
+      <p class="limit-modal-subtitle">الغرفة: <span id="roomLoadLimitRoomName"></span></p>
+      <p class="section-hint">اختر عدد الرسائل التي تريد تحميلها لتسريع الفتح.</p>
+      <div class="limit-modal-actions">
+        <button class="limit-choice-btn all" onclick="openRoomWithLimitOption(null)">عرض كل الرسائل</button>
+        <button class="limit-choice-btn last450" onclick="openRoomWithLimitOption(450)">آخر 450 رسالة</button>
+        <button class="limit-choice-btn last400" onclick="openRoomWithLimitOption(400)">آخر 400 رسالة</button>
+        <button class="limit-choice-btn last300" onclick="openRoomWithLimitOption(300)">آخر 300 رسالة</button>
+        <button class="limit-choice-btn last200" onclick="openRoomWithLimitOption(200)">آخر 200 رسالة</button>
+        <button class="limit-choice-btn last150" onclick="openRoomWithLimitOption(150)">آخر 150 رسالة</button>
+        <button class="limit-choice-btn last100" onclick="openRoomWithLimitOption(100)">آخر 100 رسالة</button>
+        <button class="limit-choice-btn last50" onclick="openRoomWithLimitOption(50)">آخر 50 رسالة</button>
+        <button class="limit-choice-btn last40" onclick="openRoomWithLimitOption(40)">آخر 40 رسالة</button>
+        <button class="limit-choice-btn last30" onclick="openRoomWithLimitOption(30)">آخر 30 رسالة</button>
+        <button class="limit-choice-btn last20" onclick="openRoomWithLimitOption(20)">آخر 20 رسالة</button>
+        <button class="limit-choice-btn last10" onclick="openRoomWithLimitOption(10)">آخر 10 رسائل</button>
+      </div>
+      <div class="limit-modal-custom">
+        <input id="customRoomLoadLimit" type="number" min="1" step="1" placeholder="اكتب عدد الرسائل" />
+        <button class="btn-blue" onclick="openRoomWithCustomLimit()">تحميل العدد المكتوب</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminFriendChatModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="closeAdminFriendChatModal()">×</button>
+      <h3>محادثة الأصدقاء: <span id="adminFriendChatTitle"></span></h3>
+      <p class="section-hint">يتم عرض آخر 20 رسالة فقط أولاً لتسريع لوحة الأدمن، واضغط على زر عرض الرسائل الأقدم لتحميل 20 رسالة أقدم في كل مرة.</p>
+      <div id="adminFriendChatOlderWrap" class="load-older-admin-row"></div>
+      <div class="messages-table-wrap">
+        <table id="adminFriendChatMessagesTable">
+          <thead>
+            <tr><th>المرسل</th><th>الرسالة</th><th>الوقت</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="friendsModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="closeFriendsModal()">×</button>
+      <h3>أصدقاء المستخدم: <span id="friendsModalUser"></span></h3>
+      <div id="friendsModalBody"></div>
+    </div>
+  </div>
+
+  <div id="roomVisibilityModal" class="modal">
+    <div class="modal-content">
+      <button class="close-btn" onclick="closeRoomVisibilityModal()">×</button>
+      <h3>إظهار/إخفاء الغرفة: <span id="roomVisibilityModalRoom"></span></h3>
+      <p class="section-hint">حدد من أعضاء الغرفة: هل تكون الغرفة ظاهرة لهم (يمكنهم دخولها) أم مخفية عنهم (سيظهر لهم أنها غير موجودة).</p>
+      <div id="roomVisibilityModalBody"></div>
+    </div>
+  </div>
+
+  <div id="admin-image-viewer-overlay" onclick="closeAdminImageViewer()">
+    <button id="admin-image-viewer-close" type="button" onclick="event.stopPropagation(); closeAdminImageViewer()">✕ إغلاق</button>
+    <button id="admin-image-viewer-hq" type="button" onclick="event.stopPropagation(); loadAdminImageHQ()">رفع جودة الصورة</button>
+    <img id="admin-image-viewer-img" alt="preview" onclick="event.stopPropagation()">
+  </div>
+
+<script>
+  // إعدادات Firebase الخاصة بك
+  const firebaseConfig = {
+    apiKey: "AIzaSyAlim9FOvDcMqTJWINoBCHk3k6DNXS-jTo",
+    databaseURL: "https://zeweil-chat-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "zeweil-chat",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  async function fetchRoomNamesShallow() {
+    const endpoint = `${firebaseConfig.databaseURL}/rooms.json?shallow=true`;
+    const response = await fetch(endpoint, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    return Object.keys(payload || {});
+  }
+
+  async function fetchFriendChatNamesShallow() {
+    const endpoint = `${firebaseConfig.databaseURL}/friendChats.json?shallow=true`;
+    const response = await fetch(endpoint, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    return Object.keys(payload || {});
+  }
+
+  let currentOpenedRoom = null;
+  let adminViewerBaseSrc = '';
+  let adminViewerHQSrc = '';
+  let adminViewerMessageKey = '';
+  let adminViewerRoomName = '';
+  let adminViewerHQLoaded = false;
+  let activeRoomVisibilityRoom = '';
+  let pendingRoomForOpen = '';
+  let activeAdminFriendChatId = '';
+  let activeAdminFriendChatLimit = 20;
+  let activeAdminFriendChatTitle = '';
+  // 1. تحميل الغرف والمهملات معاً
+  function loadRooms() {
+    loadActiveRooms();
+    loadTrash();
+    loadIndividualDeletedRooms();
+    loadAllUsers();
+    loadUsersFriendsProfiles();
+    loadUsersRoomsHistory();
+    loadFriendChatsAdmin();
+    loadUserLocations();
+  }
+
+  function roomStatusLabel(status) {
+    const normalized = String(status || 'open');
+    if (normalized === 'open') return 'مفتوحة ✅';
+    if (normalized === 'closed') return 'مغلقة 🛑';
+    if (normalized === 'passwordProtected') return 'باسورد 🔒';
+    if (normalized === 'membersOnly') return 'للأعضاء فقط 👥';
+    return escapeHTML(normalized);
+  }
+
+  function toJsString(value = '') {
+    return JSON.stringify(String(value));
+  }
+
+  function toJsonArg(value) {
+    return JSON.stringify(value);
+  }
+
+  function formatMessageTime(ts) {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return '—';
+    const d = new Date(n);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('ar-EG');
+  }
+
+  function summarizeMessage(msg = {}) {
+    const normalizedType = detectDeletedItemType(msg);
+    if (normalizedType === 'image') return '🖼️ صورة';
+    if (normalizedType === 'audio') return '🎤 رسالة صوتية';
+    if (normalizedType === 'video') return '🎥 فيديو';
+    if (msg.type === 'gif') return '🎞️ GIF';
+    if (msg.isSystem) return String(msg.message || 'رسالة نظام');
+    return String(msg.message || '');
+  }
+
+  function renderAdminMessageContent(msg = {}, messageKey = '') {
+    const normalizedType = detectDeletedItemType(msg);
+    const messageText = String(msg.message || '');
+    const safeText = escapeHTML(messageText);
+
+    if (msg.type === 'gif' || /^https?:\/\/.*giphy\.com\//i.test(messageText)) {
+      const gifSrc = escapeHTML(messageText);
+      return `<div class="admin-msg-content"><img class="admin-msg-media gif" src="${gifSrc}" alt="GIF" loading="lazy"></div>`;
+    }
+
+    if (normalizedType === 'image') {
+      const src = escapeHTML(String(msg.imageData || msg.message || ''));
+      const safeKey = escapeHTML(String(messageKey || ''));
+      const hasHq = msg.hasImageHQ ? '1' : '0';
+      return `<div class="admin-msg-content"><img class="admin-msg-media image admin-preview-image" src="${src}" alt="Image" loading="lazy" data-msg-key="${safeKey}" data-hq="${hasHq}" style="cursor:zoom-in;">${safeText && messageText !== '[IMAGE]' ? `<div class="admin-msg-text">${safeText}</div>` : ''}</div>`;
+    }
+
+    if (normalizedType === 'video') {
+      const src = escapeHTML(String(msg.videoData || msg.videoUrl || msg.message || ''));
+      return `<div class="admin-msg-content"><video class="admin-msg-media video" controls preload="metadata" src="${src}"></video></div>`;
+    }
+
+    if (normalizedType === 'audio') {
+      const src = escapeHTML(String(msg.audioData || msg.audioUrl || msg.message || ''));
+      return `<div class="admin-msg-content"><audio class="admin-msg-media audio" controls preload="metadata" src="${src}"></audio></div>`;
+    }
+
+    return `<div class="admin-msg-content"><div class="admin-msg-text">${safeText || '—'}</div></div>`;
+  }
+
+  function openAdminImageViewer(baseSrc = '', messageKey = '', roomName = '', hasHQ = false) {
+    const overlay = document.getElementById('admin-image-viewer-overlay');
+    const img = document.getElementById('admin-image-viewer-img');
+    const hqBtn = document.getElementById('admin-image-viewer-hq');
+    if (!overlay || !img || !baseSrc) return;
+
+    adminViewerBaseSrc = String(baseSrc || '');
+    adminViewerHQSrc = '';
+    adminViewerMessageKey = String(messageKey || '');
+    adminViewerRoomName = String(roomName || currentOpenedRoom || '');
+    adminViewerHQLoaded = false;
+
+    img.src = adminViewerBaseSrc;
+    if (hqBtn) {
+      hqBtn.style.display = (hasHQ || adminViewerMessageKey) ? 'inline-block' : 'none';
+      hqBtn.disabled = false;
+      hqBtn.textContent = 'رفع جودة الصورة';
+    }
+    overlay.style.display = 'flex';
+  }
+
+  function closeAdminImageViewer() {
+    const overlay = document.getElementById('admin-image-viewer-overlay');
+    const img = document.getElementById('admin-image-viewer-img');
+    if (overlay) overlay.style.display = 'none';
+    if (img) img.src = '';
+    adminViewerBaseSrc = '';
+    adminViewerHQSrc = '';
+    adminViewerMessageKey = '';
+    adminViewerRoomName = '';
+    adminViewerHQLoaded = false;
+  }
+
+  function loadAdminImageHQ() {
+    const img = document.getElementById('admin-image-viewer-img');
+    const hqBtn = document.getElementById('admin-image-viewer-hq');
+    if (!img || !adminViewerBaseSrc || adminViewerHQLoaded) return;
+
+    const applyHQ = (src = '') => {
+      if (!src || src === adminViewerBaseSrc) {
+        alert('لا توجد نسخة أعلى جودة لهذه الصورة.');
+        return;
+      }
+      adminViewerHQSrc = src;
+      adminViewerHQLoaded = true;
+      img.src = src;
+      if (hqBtn) {
+        hqBtn.textContent = 'تم رفع الجودة';
+        hqBtn.disabled = true;
+      }
+    };
+
+    if (adminViewerHQSrc) {
+      applyHQ(adminViewerHQSrc);
+      return;
+    }
+    if (!adminViewerRoomName || !adminViewerMessageKey) {
+      alert('لا توجد نسخة أعلى جودة لهذه الصورة.');
+      return;
+    }
+
+    if (hqBtn) {
+      hqBtn.textContent = 'جاري التحميل...';
+      hqBtn.disabled = true;
+    }
+
+    db.ref(`rooms/${adminViewerRoomName}/messageImageHQ/${adminViewerMessageKey}`).once('value').then(snap => {
+      const fromSeparatePath = String(snap.val() || '');
+      if (fromSeparatePath) {
+        applyHQ(fromSeparatePath);
+        return;
+      }
+      return db.ref(`rooms/${adminViewerRoomName}/messages/${adminViewerMessageKey}/imageHQData`).once('value').then(innerSnap => {
+        applyHQ(String(innerSnap.val() || ''));
+      });
+    }).catch(() => {
+      alert('تعذر تحميل نسخة الجودة العالية.');
+    }).finally(() => {
+      if (hqBtn && !adminViewerHQLoaded) {
+        hqBtn.textContent = 'رفع جودة الصورة';
+        hqBtn.disabled = false;
+      }
+    });
+  }
+
+  function detectDeletedItemType(item = {}) {
+    if (!item || typeof item !== 'object') return 'text';
+    const explicitType = String(item.type || item.mediaType || '').toLowerCase();
+    const imageSource = String(item.imageData || item.message || item.content || '');
+    const audioSource = String(item.audioData || item.audioUrl || item.message || item.content || '');
+    const videoSource = String(item.videoData || item.videoUrl || item.message || item.content || '');
+    if (explicitType === 'video' || item.videoData || item.videoUrl || /^https?:\/\/.+\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(videoSource)) return 'video';
+    if (explicitType === 'audio' || item.audioData || item.audioUrl || /^https?:\/\/.+\.(mp3|wav|ogg|m4a|aac|webm)(\?.*)?$/i.test(audioSource)) return 'audio';
+    if (explicitType === 'image' || item.imageData || imageSource.startsWith('data:image/') || /^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(imageSource)) return 'image';
+    return 'text';
+  }
+
+  function getDeletedMediaSource(item = {}, type = 'text') {
+    if (!item || typeof item !== 'object') return '';
+    if (type === 'image') return String(item.imageData || item.message || item.content || '');
+    if (type === 'audio') return String(item.audioData || item.audioUrl || item.message || item.content || '');
+    if (type === 'video') return String(item.videoData || item.videoUrl || item.message || item.content || '');
+    return '';
+  }
+
+  function loadActiveRooms() {
+    const table = document.getElementById("roomTable");
+    table.innerHTML = '<tr><td colspan="3">جاري تحميل الغرف...</td></tr>';
+
+    fetchRoomNamesShallow().then(roomNames => {
+      if (!roomNames.length) {
+        table.innerHTML = '<tr><td colspan="3">لا توجد غرف حالياً</td></tr>';
+        return;
+      }
+
+      const roomPromises = roomNames.map(roomName => {
+        return db.ref(`rooms/${roomName}/status`).once('value').then(statusSnap => ({
+          roomName,
+          status: statusSnap.val() || 'open'
+        })).catch(() => ({ roomName, status: 'open' }));
+      });
+
+      return Promise.all(roomPromises).then(rooms => {
+        table.innerHTML = '';
+        rooms.sort((a, b) => a.roomName.localeCompare(b.roomName, 'ar'));
+
+        rooms.forEach(({ roomName, status }) => {
+          const safeRoomName = escapeHTML(roomName);
+          const statusText = roomStatusLabel(status);
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${safeRoomName}</td>
+            <td>${statusText}</td>
+            <td>
+              <button onclick='openRoomLoadLimitModal(${toJsString(roomName)})' class="btn-gray">👁️ عرض</button>
+              <button onclick='setRoomStatus(${toJsString(roomName)}, "closed")' class="btn-red mini-btn tiny">🔒 قفل الغرفة</button>
+              <button onclick='setRoomStatus(${toJsString(roomName)}, "membersOnly")' class="btn-blue mini-btn tiny">👥 للأعضاء فقط</button>
+              <button onclick='setRoomStatus(${toJsString(roomName)}, "open")' class="btn-green mini-btn tiny">🔓 فتح</button>
+              <button onclick='openRoomVisibilityModal(${toJsString(roomName)})' class="btn-blue mini-btn tiny">إظهار الغرفة/إخفاء الغرفة</button>
+              <button onclick='deleteRoomMessages(${toJsString(roomName)})' class="btn-orange">🗑️ نقل الرسائل للمهملات</button>
+              <button onclick='deleteRoom(${toJsString(roomName)})' class="btn-red">❌ حذف الغرفة</button>
+            </td>
+          `;
+          table.appendChild(row);
+        });
+      });
+    }).catch(() => {
+      table.innerHTML = '<tr><td colspan="3">تعذر تحميل الغرف</td></tr>';
+    });
+  }
+
+  function closeRoomVisibilityModal() {
+    activeRoomVisibilityRoom = '';
+    const modal = document.getElementById('roomVisibilityModal');
+    const body = document.getElementById('roomVisibilityModalBody');
+    if (modal) modal.style.display = 'none';
+    if (body) body.innerHTML = '';
+  }
+
+  function openRoomVisibilityModal(roomName) {
+    activeRoomVisibilityRoom = String(roomName || '').trim();
+    if (!activeRoomVisibilityRoom) return;
+    const modal = document.getElementById('roomVisibilityModal');
+    const roomLabel = document.getElementById('roomVisibilityModalRoom');
+    if (roomLabel) roomLabel.textContent = activeRoomVisibilityRoom;
+    if (modal) modal.style.display = 'flex';
+    loadRoomVisibilityMembers(activeRoomVisibilityRoom);
+  }
+
+  function loadRoomVisibilityMembers(roomName) {
+    const body = document.getElementById('roomVisibilityModalBody');
+    if (!body) return;
+    body.innerHTML = '<div>جاري تحميل أعضاء الغرفة...</div>';
+
+    Promise.all([
+      db.ref(`rooms/${roomName}/members`).once('value'),
+      db.ref('users').once('value')
+    ]).then(([membersSnap, usersSnap]) => {
+      const membersObj = membersSnap.val() || {};
+      const memberIds = Object.keys(membersObj);
+      const usersById = usersSnap.val() || {};
+
+      if (!memberIds.length) {
+        body.innerHTML = '<div class="tiny-note">لا يوجد أعضاء مسجلون حالياً داخل هذه الغرفة.</div>';
+        return;
+      }
+
+      body.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>حالة الظهور</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+          <tbody id="roomVisibilityMembersTable"></tbody>
+        </table>
+      `;
+
+      const table = document.getElementById('roomVisibilityMembersTable');
+      memberIds.sort((a, b) => {
+        const nameA = (usersById[a]?.name || membersObj[a]?.name || `مستخدم-${a.slice(0, 6)}`);
+        const nameB = (usersById[b]?.name || membersObj[b]?.name || `مستخدم-${b.slice(0, 6)}`);
+        return String(nameA).localeCompare(String(nameB), 'ar');
+      });
+
+      const rowPromises = memberIds.map(uid => {
+        return db.ref(`users/${uid}/roomVisibility/${roomName}`).once('value').then(visibilitySnap => {
+          const visibilityData = visibilitySnap.val() || {};
+          const isVisible = visibilityData.visible !== false;
+          const userName = usersById[uid]?.name || membersObj[uid]?.name || `مستخدم-${uid.slice(0, 6)}`;
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>
+              <div>${escapeHTML(userName)}</div>
+              <span class="user-meta">${escapeHTML(uid)}</span>
+            </td>
+            <td>
+              <span class="visibility-status ${isVisible ? 'visible' : 'hidden'}">
+                ${isVisible ? 'ظاهرة له ✅' : 'مخفية عنه ⛔'}
+              </span>
+            </td>
+            <td>
+              <button class="btn-gray mini-btn" onclick='toggleRoomVisibilityForUser(${toJsString(roomName)}, ${toJsString(uid)}, ${isVisible ? "true" : "false"})'>
+                ${isVisible ? 'إخفاء الغرفة' : 'إظهار الغرفة'}
+              </button>
+            </td>
+          `;
+          table.appendChild(row);
+        }).catch(() => {});
+      });
+
+      return Promise.all(rowPromises);
+    }).catch(err => {
+      body.innerHTML = `<div class="tiny-note">تعذر تحميل البيانات: ${escapeHTML(err.message || 'خطأ غير معروف')}</div>`;
+    });
+  }
+
+  function toggleRoomVisibilityForUser(roomName, uid, currentlyVisible) {
+    const safeRoom = String(roomName || '').trim();
+    const safeUid = String(uid || '').trim();
+    if (!safeRoom || !safeUid) return;
+
+    const nextVisible = !(currentlyVisible === true || currentlyVisible === 'true');
+    const targetRef = db.ref(`users/${safeUid}/roomVisibility/${safeRoom}`);
+    const writePromise = nextVisible
+      ? targetRef.remove()
+      : targetRef.set({
+          visible: false,
+          updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+    writePromise.then(() => {
+      loadRoomVisibilityMembers(safeRoom);
+    }).catch(err => {
+      alert(`تعذر تحديث الحالة: ${err.message || 'خطأ غير معروف'}`);
+    });
+  }
+
+  function isProtectedMediaMessage(message = {}) {
+    if (!message || typeof message !== 'object') return false;
+    const explicitType = String(message.type || message.mediaType || '').toLowerCase();
+    const rawMessage = String(message.message || '');
+
+    const hasImage = explicitType === 'image' || !!message.imageData || rawMessage.startsWith('data:image/');
+    const hasVideo = explicitType === 'video' || !!message.videoData || /\.(mp4|webm|mov)(\?.*)?$/i.test(rawMessage);
+    const hasAudio = explicitType === 'audio' || !!message.audioData || /\.(mp3|wav|ogg|m4a)(\?.*)?$/i.test(rawMessage);
+    const hasFile = explicitType === 'file' || !!message.fileData || !!message.fileUrl || !!message.mediaUrl;
+
+    return hasImage || hasVideo || hasAudio || hasFile;
+  }
+
+
+
+  // 2. نقل كل رسائل الغرفة (بكل أنواعها) للمهملات
+  function deleteRoomMessages(roomName) {
+    if (!confirm(`هل أنت متأكد من نقل كل رسائل غرفة "${roomName}" إلى المهملات؟ سيتم نقل النصوص والوسائط بالكامل.`)) return;
+
+    const roomMsgsRef = db.ref(`rooms/${roomName}/messages`);
+    const roomImageHQRef = db.ref(`rooms/${roomName}/messageImageHQ`);
+
+    Promise.all([roomMsgsRef.once("value"), roomImageHQRef.once('value'), db.ref(`trash/rooms/${roomName}`).once('value')])
+      .then(([messagesSnap, imageHqSnap, trashSnap]) => {
+        if (!messagesSnap.exists()) {
+          alert("الغرفة لا تحتوي على رسائل لنقلها.");
+          return null;
+        }
+
+        const messagesData = messagesSnap.val() || {};
+        const imageHQData = imageHqSnap.val() || {};
+        const existingTrash = trashSnap.val() || {};
+        const existingMessages = (existingTrash.messages && typeof existingTrash.messages === 'object') ? existingTrash.messages : {};
+        const existingImageHQ = (existingTrash.messageImageHQ && typeof existingTrash.messageImageHQ === 'object') ? existingTrash.messageImageHQ : {};
+
+        const mergedMessages = { ...existingMessages, ...messagesData };
+        const mergedImageHQ = { ...existingImageHQ, ...imageHQData };
+
+        const updates = {};
+        updates[`trash/rooms/${roomName}`] = {
+          ...(existingTrash || {}),
+          messages: mergedMessages,
+          messageImageHQ: mergedImageHQ,
+          deletedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        updates[`rooms/${roomName}/messages`] = null;
+        updates[`rooms/${roomName}/messageImageHQ`] = null;
+
+        return db.ref().update(updates).then(() => {
+          alert("✅ تم نقل كل الرسائل");
+          loadActiveRooms();
+          loadTrash();
+        });
+      })
+      .catch(err => alert("حدث خطأ: " + err.message));
+  }
+
+  function deleteLastMessagesPrompt() {
+    if (!currentOpenedRoom) {
+      alert('افتح غرفة أولاً.');
+      return;
+    }
+
+    const input = document.getElementById('bulk-delete-count');
+    const requested = Number(input ? input.value : 0);
+    const count = Number.isFinite(requested) ? Math.floor(requested) : 0;
+
+    if (!count || count < 1) {
+      alert('اكتب عدد صحيح أكبر من 0.');
+      return;
+    }
+
+    deleteLastMessages(currentOpenedRoom, count);
+  }
+
+  function deleteLastMessages(roomName, count) {
+    const safeCount = Math.max(1, Math.min(1000, Number(count) || 0));
+    if (!confirm(`سيتم حذف آخر ${safeCount} رسالة من غرفة "${roomName}". متابعة؟`)) return;
+
+    db.ref(`rooms/${roomName}/messages`).limitToLast(safeCount).once('value').then(snapshot => {
+      if (!snapshot.exists()) {
+        alert('لا توجد رسائل للحذف.');
+        return;
+      }
+
+      const updates = {};
+      let actualCount = 0;
+      snapshot.forEach(child => {
+        actualCount += 1;
+        const key = child.key;
+        updates[`rooms/${roomName}/messages/${key}`] = null;
+        updates[`rooms/${roomName}/messageImageHQ/${key}`] = null;
+      });
+
+      return db.ref().update(updates).then(() => {
+        alert(`✅ تم حذف آخر ${actualCount} رسالة من الغرفة.`);
+        openRoom(roomName);
+        loadActiveRooms();
+      });
+    }).catch(err => alert('حدث خطأ أثناء حذف الرسائل: ' + err.message));
+  }
+
+  // 3. تحميل وإدارة سلة المهملات
+  function loadTrash() {
+    const table = document.getElementById("trashTable");
+    table.innerHTML = "";
+
+    db.ref("trash/rooms").once("value", snapshot => {
+      if (!snapshot.exists()) {
+        table.innerHTML = "<tr><td colspan='3'>السلة فارغة تماماً</td></tr>";
+        return;
+      }
+
+      snapshot.forEach(child => {
+        const roomName = child.key;
+        const data = child.val();
+        const date = new Date(data.deletedAt).toLocaleString('ar-EG');
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><b>${escapeHTML(roomName)}</b></td>
+          <td>${date}</td>
+          <td>
+            <button onclick='restoreMessages(${toJsString(roomName)})' class="btn-green">⏪ استعادة للدردشة</button>
+            <button onclick='permanentDelete(${toJsString(roomName)})' class="btn-red">💀 حذف نهائي</button>
+          </td>
+        `;
+        table.appendChild(row);
+      });
+    });
+  }
+
+  // 4. استعادة الرسائل من المهملات إلى الغرفة
+  function restoreMessages(roomName) {
+    if (!confirm(`هل تريد استعادة كافة رسائل غرفة "${roomName}"؟`)) return;
+
+    db.ref(`trash/rooms/${roomName}`).once("value", snapshot => {
+      const trashData = snapshot.val();
+      if (!trashData || !trashData.messages) return;
+
+      const writes = [db.ref(`rooms/${roomName}/messages`).update(trashData.messages)];
+      if (trashData.messageImageHQ && typeof trashData.messageImageHQ === 'object') {
+        writes.push(db.ref(`rooms/${roomName}/messageImageHQ`).update(trashData.messageImageHQ));
+      }
+
+      // إرجاع الرسائل لمسارها الأصلي
+      Promise.all(writes)
+      .then(() => {
+        // حذفها من السلة بعد الاستعادة
+        return db.ref(`trash/rooms/${roomName}`).remove();
+      })
+      .then(() => {
+        alert("✅ تم استعادة الرسائل بنجاح للغرفة.");
+        loadActiveRooms();
+        loadTrash();
+      });
+    });
+  }
+
+  // 5. الحذف النهائي من السلة
+  function permanentDelete(roomName) {
+    if (!confirm(`تحذير: سيتم حذف الرسائل نهائياً من السلة ولا يمكن استعادتها أبداً. استمرار؟`)) return;
+    db.ref(`trash/rooms/${roomName}`).remove().then(() => {
+      alert("🗑️ تم الحذف النهائي بنجاح.");
+      loadTrash();
+    });
+  }
+
+
+  function formatCoord(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(6);
+  }
+
+  function formatUserPresence(user = {}) {
+    if (user.online) return 'متصل الآن 🟢';
+    if (user.lastSeen) return `آخر ظهور: ${new Date(Number(user.lastSeen)).toLocaleString('ar-EG')}`;
+    return 'غير متصل';
+  }
+
+  function loadAllUsers() {
+    const table = document.getElementById('usersTable');
+    table.innerHTML = '<tr><td colspan="4">جاري تحميل المستخدمين...</td></tr>';
+
+    db.ref('users').once('value', snapshot => {
+      if (!snapshot.exists()) {
+        table.innerHTML = '<tr><td colspan="4">لا يوجد مستخدمون مسجلون حالياً.</td></tr>';
+        return;
+      }
+
+      const rows = [];
+      snapshot.forEach(child => {
+        const user = child.val() || {};
+        rows.push({
+          uid: child.key,
+          name: (user.name || `مستخدم-${String(child.key || '').slice(0, 6)}`).trim(),
+          statusText: String(user.statusText || '').trim(),
+          joinedAt: Number(user.joinedAt) || 0,
+          online: Boolean(user.online),
+          lastSeen: Number(user.lastSeen) || 0,
+          room: String(user.currentRoom || '').trim(),
+          identityKey: String(user.identityKey || '').trim(),
+          adminNameChangeGrantCount: Number(user.adminNameChangeGrantCount) || 0
+        });
+      });
+
+      rows.sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return (b.lastSeen || b.joinedAt) - (a.lastSeen || a.joinedAt);
+      });
+
+      table.innerHTML = '';
+      rows.forEach(user => {
+        const tr = document.createElement('tr');
+        const joinedAt = user.joinedAt ? new Date(user.joinedAt).toLocaleDateString('ar-EG') : '—';
+        const roomLabel = user.room || '—';
+        const statusText = user.statusText || '—';
+        const grantText = user.adminNameChangeGrantCount > 0 ? `✅ مفعلة (${user.adminNameChangeGrantCount})` : '— غير مفعلة';
+        tr.innerHTML = `
+          <td>
+            <strong>${escapeHTML(user.name)}</strong>
+            <span class="user-meta">${escapeHTML(user.uid)}</span>
+          </td>
+          <td>${escapeHTML(formatUserPresence(user))}</td>
+          <td>
+            <div>الغرفة الحالية: <b>${escapeHTML(roomLabel)}</b></div>
+            <div>تاريخ الانضمام: <b>${escapeHTML(joinedAt)}</b></div>
+            <div>الحالة: <b>${escapeHTML(statusText)}</b></div>
+            <div>محاولة تغيير الاسم من الأدمن: <b>${escapeHTML(grantText)}</b></div>
+          </td>
+          <td>
+            <button onclick='grantSingleNameChangeAttempt(${toJsString(user.uid)}, ${toJsString(user.name)})' class="btn-orange">${user.adminNameChangeGrantCount > 0 ? '🎟️ المحاولة مفعلة' : '🎟️ منح محاولة تغيير الاسم'}</button>
+            <button onclick='deleteUser(${toJsString(user.uid)}, ${toJsString(user.name)}, ${toJsString(user.identityKey)})' class="btn-red">🗑️ حذف المستخدم</button>
+          </td>
+        `;
+        table.appendChild(tr);
+      });
+    }).catch(err => {
+      table.innerHTML = `<tr><td colspan="4">تعذر تحميل المستخدمين: ${escapeHTML(err.message || 'خطأ غير معروف')}</td></tr>`;
+    });
+  }
+
+  function deleteUser(userId, userName, identityKey = '') {
+    const displayName = userName || userId;
+    if (!confirm(`هل أنت متأكد من حذف المستخدم "${displayName}" من قاعدة البيانات؟`)) return;
+
+    const updates = {};
+    updates[`users/${userId}`] = null;
+    if (identityKey) {
+      updates[`socialByName/${identityKey}`] = null;
+    }
+
+    db.ref('rooms').once('value').then(snapshot => {
+      snapshot.forEach(child => {
+        const roomName = child.key;
+        updates[`rooms/${roomName}/typing/${userId}`] = null;
+        updates[`rooms/${roomName}/allowedUsers/${userId}`] = null;
+        updates[`rooms/${roomName}/members/${userId}`] = null;
+      });
+
+      return db.ref().update(updates);
+    }).then(() => {
+      alert(`✅ تم حذف بيانات المستخدم "${displayName}" بنجاح.`);
+      loadAllUsers();
+      loadUserLocations();
+    }).catch(err => {
+      alert('حدث خطأ أثناء حذف المستخدم: ' + err.message);
+    });
+  }
+
+  function grantSingleNameChangeAttempt(userId, userName) {
+    if (!userId) return;
+    const displayName = userName || userId;
+    if (!confirm(`تأكيد منح "${displayName}" محاولة واحدة لتغيير الاسم؟`)) return;
+
+    db.ref(`users/${userId}`).update({
+      adminNameChangeGrantCount: 1,
+      adminNameChangeGrantAt: Date.now()
+    }).then(() => {
+      alert(`✅ تم منح "${displayName}" محاولة واحدة لتغيير الاسم بنجاح.`);
+      loadAllUsers();
+    }).catch(err => {
+      alert('حدث خطأ أثناء منح محاولة تغيير الاسم: ' + (err && err.message ? err.message : 'خطأ غير معروف'));
+    });
+  }
+
+
+
+  function scrollToAdminSection(sectionId) {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    if (target.scrollIntoView) {
+      try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      catch (_) { target.scrollIntoView(); }
+    }
+  }
+
+  function normalizeGiftCouponCode(code = '') {
+    return String(code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  }
+
+  function saveGiftCoupon() {
+    const code = normalizeGiftCouponCode(document.getElementById('giftCouponCode').value);
+    const percent = Math.max(1, Math.min(90, Math.floor(Number(document.getElementById('giftCouponPercent').value || 0))));
+    const days = Math.max(0, Math.floor(Number(document.getElementById('giftCouponDays').value || 0)));
+    const maxUses = Math.max(1, Math.floor(Number(document.getElementById('giftCouponMaxUses').value || 1)));
+    if (!code) { alert('اكتب كود صحيح بحروف/أرقام.'); return; }
+    if (!percent) { alert('اكتب نسبة خصم صحيحة.'); return; }
+    const payload = { code, percent, maxUses, active:true, updatedAt: Date.now(), expiresAt: days ? Date.now() + days * 86400000 : 0 };
+    db.ref(`giftCoupons/${code}`).update(payload).then(() => {
+      alert('تم حفظ كود الخصم ✅');
+      document.getElementById('giftCouponCode').value = '';
+      document.getElementById('giftCouponPercent').value = '';
+      document.getElementById('giftCouponDays').value = '';
+      document.getElementById('giftCouponMaxUses').value = '';
+      loadGiftCoupons();
+    }).catch(err => alert('تعذر حفظ الكود: ' + (err.message || err)));
+  }
+
+  function loadGiftCoupons() {
+    const table = document.getElementById('giftCouponsTable');
+    if (!table) return;
+    table.innerHTML = '<tr><td colspan="6">جاري التحميل...</td></tr>';
+    db.ref('giftCoupons').once('value').then(snapshot => {
+      const rows = [];
+      snapshot.forEach(child => {
+        const value = child.val() || {};
+        value.code = child.key;
+        rows.push(value);
+      });
+      rows.sort((a,b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      if (!rows.length) { table.innerHTML = '<tr><td colspan="6">لا توجد أكواد خصم بعد.</td></tr>'; return; }
+      table.innerHTML = rows.map(c => {
+        const expired = Number(c.expiresAt || 0) && Number(c.expiresAt || 0) < Date.now();
+        const status = c.active === false ? 'متوقف' : expired ? 'منتهي' : 'نشط';
+        const exp = c.expiresAt ? new Date(Number(c.expiresAt)).toLocaleString('ar-EG') : 'بدون انتهاء';
+        const maxUses = Math.max(1, Math.floor(Number(c.maxUses || 1)));
+        const usedCount = Math.max(0, Math.floor(Number(c.usedCount || 0)));
+        return `<tr><td><b>${escapeHTML(c.code)}</b></td><td>${Number(c.percent || 0)}%</td><td>${usedCount} / ${maxUses}<br><small>مرة واحدة لكل مستخدم</small></td><td>${escapeHTML(status)}</td><td>${escapeHTML(exp)}</td><td><button class="btn-orange mini-btn" onclick='toggleGiftCoupon(${toJsString(c.code)}, ${c.active === false ? 'true' : 'false'})'>${c.active === false ? 'تفعيل' : 'إيقاف'}</button> <button class="btn-red mini-btn" onclick='deleteGiftCoupon(${toJsString(c.code)})'>حذف</button></td></tr>`;
+      }).join('');
+    }).catch(err => { table.innerHTML = `<tr><td colspan="6">تعذر تحميل الأكواد: ${escapeHTML(err.message || err)}</td></tr>`; });
+  }
+
+  function toggleGiftCoupon(code, active) {
+    db.ref(`giftCoupons/${normalizeGiftCouponCode(code)}`).update({ active: !!active, updatedAt: Date.now() }).then(loadGiftCoupons);
+  }
+
+  function deleteGiftCoupon(code) {
+    const normalized = normalizeGiftCouponCode(code);
+    if (!normalized || !confirm(`حذف كود الخصم ${normalized}؟`)) return;
+    db.ref(`giftCoupons/${normalized}`).remove().then(loadGiftCoupons);
+  }
+
+
+  function loadUserLocations() {
+    const table = document.getElementById('locationTable');
+    table.innerHTML = '<tr><td colspan="6">جاري تحميل المواقع...</td></tr>';
+
+    db.ref('users').once('value', snapshot => {
+      const rows = [];
+      snapshot.forEach(child => {
+        const user = child.val() || {};
+        const loc = user.location || {};
+        const lat = Number(loc.latitude);
+        const lng = Number(loc.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        rows.push({
+          uid: child.key,
+          name: user.name || loc.name || `مستخدم-${String(child.key || '').slice(0, 6)}`,
+          latitude: lat,
+          longitude: lng,
+          accuracy: Number(loc.accuracy),
+          updatedAt: Number(loc.updatedAt) || 0
+        });
+      });
+
+      rows.sort((a, b) => b.updatedAt - a.updatedAt);
+
+      if (!rows.length) {
+        table.innerHTML = '<tr><td colspan="6">لا توجد مواقع مسجلة بعد.</td></tr>';
+        return;
+      }
+
+      table.innerHTML = '';
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        const updated = row.updatedAt ? new Date(row.updatedAt).toLocaleString('ar-EG') : '—';
+        const mapUrl = `https://maps.google.com/?q=${row.latitude},${row.longitude}`;
+        tr.innerHTML = `
+          <td>${escapeHTML(row.name)}<br><small style="color:#999">${escapeHTML(row.uid)}</small></td>
+          <td>${formatCoord(row.latitude)}</td>
+          <td>${formatCoord(row.longitude)}</td>
+          <td>${Number.isFinite(row.accuracy) ? Math.round(row.accuracy) : '—'}</td>
+          <td>${updated}</td>
+          <td><a href="${mapUrl}" target="_blank" style="color:#8fc4ff;">فتح الخريطة</a></td>
+        `;
+        table.appendChild(tr);
+      });
+    }).catch(() => {
+      table.innerHTML = '<tr><td colspan="6">تعذر تحميل المواقع.</td></tr>';
+    });
+  }
+
+  function makeAvatarMarkup(name = '', profileImage = '') {
+    const safeName = String(name || '').trim();
+    const initials = safeName ? safeName.slice(0, 2) : '؟';
+    const image = String(profileImage || '').trim();
+    if (image) return `<img src="${escapeHTML(image)}" alt="avatar">`;
+    return `<span>${escapeHTML(initials)}</span>`;
+  }
+
+  function renderRoomsVisitedSummary(roomsVisited = {}) {
+    const entries = Object.entries(roomsVisited || {})
+      .map(([roomName, ts]) => ({ roomName, ts: Number(ts) || 0 }))
+      .sort((a, b) => b.ts - a.ts);
+    if (!entries.length) return '—';
+    return entries
+      .map(entry => `${escapeHTML(entry.roomName)} (${escapeHTML(formatMessageTime(entry.ts))})`)
+      .join(' • ');
+  }
+
+  function loadUsersRoomsHistory() {
+    const table = document.getElementById('userRoomsHistoryTable');
+    table.innerHTML = '<tr><td colspan="3">جاري تحميل سجل الغرف...</td></tr>';
+
+    db.ref('users').once('value', snapshot => {
+      if (!snapshot.exists()) {
+        table.innerHTML = '<tr><td colspan="3">لا يوجد مستخدمون حالياً.</td></tr>';
+        return;
+      }
+
+      const rows = [];
+      snapshot.forEach(child => {
+        const user = child.val() || {};
+        const visited = (user.roomsVisited && typeof user.roomsVisited === 'object') ? user.roomsVisited : {};
+        rows.push({
+          uid: child.key,
+          name: user.name || `مستخدم-${String(child.key || '').slice(0, 6)}`,
+          roomsVisited: visited
+        });
+      });
+
+      table.innerHTML = '';
+      rows.forEach(row => {
+        const roomsCount = Object.keys(row.roomsVisited || {}).length;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHTML(row.name)}<span class="user-meta">${escapeHTML(row.uid)}</span></td>
+          <td>${roomsCount}</td>
+          <td>${renderRoomsVisitedSummary(row.roomsVisited)}</td>
+        `;
+        table.appendChild(tr);
+      });
+    }).catch(err => {
+      table.innerHTML = `<tr><td colspan="3">تعذر تحميل سجل الغرف: ${escapeHTML(err.message || 'خطأ غير معروف')}</td></tr>`;
+    });
+  }
+
+  function openFriendsModal(userName, userUid, friends, usersById) {
+    document.getElementById('friendsModalUser').textContent = userName;
+    const body = document.getElementById('friendsModalBody');
+    if (!friends.length) {
+      body.innerHTML = '<p class="tiny-note">لا يوجد أصدقاء مسجلون لهذا المستخدم حالياً.</p>';
+    } else {
+      body.innerHTML = '<div class="friends-preview-list" id="friends-preview-list"></div>';
+      const list = document.getElementById('friends-preview-list');
+      friends.forEach(friendId => {
+        const friend = usersById[friendId] || {};
+        const friendName = String(friend.name || `مستخدم-${String(friendId || '').slice(0, 6)}`);
+        const profileImage = String(friend.profileImage || '');
+        const statusText = String(friend.statusText || '').trim() || '—';
+        const bio = String(friend.bio || '').trim() || 'لا توجد نبذة';
+        const currentRoom = String(friend.currentRoom || '').trim() || '—';
+        const item = document.createElement('div');
+        item.className = 'friend-preview-item';
+        item.innerHTML = `
+          <div class="friend-preview-avatar">${makeAvatarMarkup(friendName, profileImage)}</div>
+          <div class="friend-preview-meta">
+            <div class="name">${escapeHTML(friendName)}</div>
+            <div class="sub">UID: ${escapeHTML(friendId)}</div>
+            <div class="sub">الحالة: ${escapeHTML(statusText)}</div>
+            <div class="sub">الغرفة الحالية: ${escapeHTML(currentRoom)}</div>
+            <div class="sub">النبذة: ${escapeHTML(bio)}</div>
+          </div>
+          <button class="btn-blue mini-btn" onclick='openAdminFriendChat(${toJsString(getFriendChatId(userUid, friendId))}, ${toJsString(`${userName} ↔ ${friendName}`)})'>فتح الشات</button>
+        `;
+        list.appendChild(item);
+      });
+    }
+    document.getElementById('friendsModal').style.display = 'flex';
+  }
+
+
+  function getFriendChatId(uidA = '', uidB = '') {
+    return [String(uidA || ''), String(uidB || '')].filter(Boolean).sort().join('__');
+  }
+
+  function getUserDisplayName(usersById = {}, uid = '') {
+    const user = usersById[uid] || {};
+    return String(user.name || `مستخدم-${String(uid || '').slice(0, 6)}`);
+  }
+
+  function renderFriendChatTitle(chatId = '', usersById = {}) {
+    const ids = String(chatId || '').split('__').filter(Boolean);
+    if (ids.length >= 2) return `${getUserDisplayName(usersById, ids[0])} ↔ ${getUserDisplayName(usersById, ids[1])}`;
+    return chatId || 'محادثة غير معروفة';
+  }
+
+  async function loadFriendChatsAdmin() {
+    const table = document.getElementById('friendChatsTable');
+    if (!table) return;
+    table.innerHTML = '<tr><td colspan="3">جاري تحميل محادثات الأصدقاء...</td></tr>';
+
+    try {
+      const [chatNames, usersSnap] = await Promise.all([
+        fetchFriendChatNamesShallow(),
+        db.ref('users').once('value')
+      ]);
+      const usersById = usersSnap.val() || {};
+      if (!chatNames.length) {
+        table.innerHTML = '<tr><td colspan="3">لا توجد محادثات أصدقاء محفوظة حالياً.</td></tr>';
+        return;
+      }
+
+      const rows = await Promise.all(chatNames.map(async chatId => {
+        const lastSnap = await db.ref(`friendChats/${chatId}/messages`).limitToLast(1).once('value');
+        let last = null;
+        lastSnap.forEach(child => { last = child.val() || null; });
+        return { chatId, title: renderFriendChatTitle(chatId, usersById), last };
+      }));
+
+      rows.sort((a, b) => Number((b.last && b.last.timestamp) || 0) - Number((a.last && a.last.timestamp) || 0));
+      table.innerHTML = '';
+      rows.forEach(row => {
+        const lastText = row.last ? `${escapeHTML(row.last.senderName || 'مستخدم')}: ${escapeHTML(String(row.last.text || '').slice(0, 90))}<span class="user-meta">${escapeHTML(formatMessageTime(row.last.timestamp))}</span>` : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><b>${escapeHTML(row.title)}</b><span class="user-meta">${escapeHTML(row.chatId)}</span></td><td>${lastText}</td><td><button class="btn-gray mini-btn" onclick='openAdminFriendChat(${toJsString(row.chatId)}, ${toJsString(row.title)})'>👁️ فتح الشات</button></td>`;
+        table.appendChild(tr);
+      });
+    } catch (err) {
+      table.innerHTML = `<tr><td colspan="3">تعذر تحميل محادثات الأصدقاء: ${escapeHTML(err.message || 'خطأ غير معروف')}</td></tr>`;
+    }
+  }
+
+  function openAdminFriendChat(chatId = '', title = '') {
+    activeAdminFriendChatId = String(chatId || '').trim();
+    if (!activeAdminFriendChatId) return;
+    activeAdminFriendChatLimit = 20;
+    activeAdminFriendChatTitle = String(title || activeAdminFriendChatId);
+    document.getElementById('adminFriendChatTitle').textContent = activeAdminFriendChatTitle;
+    document.getElementById('adminFriendChatModal').style.display = 'flex';
+    renderAdminFriendChatMessages();
+  }
+
+  function closeAdminFriendChatModal() {
+    document.getElementById('adminFriendChatModal').style.display = 'none';
+    activeAdminFriendChatId = '';
+  }
+
+  function loadOlderAdminFriendChatMessages() {
+    if (!activeAdminFriendChatId) return;
+    activeAdminFriendChatLimit = Number(activeAdminFriendChatLimit || 20) + 20;
+    renderAdminFriendChatMessages();
+  }
+
+  function loadAllAdminFriendChatMessages() {
+    if (!activeAdminFriendChatId) return;
+    activeAdminFriendChatLimit = null;
+    renderAdminFriendChatMessages();
+  }
+
+  function isFriendChatMessageObject(value = {}) {
+    if (!value || typeof value !== 'object') return false;
+    return ['senderId', 'senderName', 'text', 'message', 'content', 'timestamp', 'dayKey'].some(field => Object.prototype.hasOwnProperty.call(value, field));
+  }
+
+  function collectAdminFriendChatMessages(raw = {}, parentKey = '') {
+    const rows = [];
+    Object.entries(raw || {}).forEach(([key, value]) => {
+      if (!value || typeof value !== 'object') return;
+      const rowKey = parentKey ? `${parentKey}/${key}` : key;
+      if (isFriendChatMessageObject(value)) {
+        rows.push({ key: rowKey, msg: value });
+        return;
+      }
+      rows.push(...collectAdminFriendChatMessages(value, rowKey));
+    });
+    return rows;
+  }
+
+  function getAdminFriendChatText(msg = {}) {
+    return String(msg.text ?? msg.message ?? msg.content ?? '');
+  }
+
+  function renderAdminFriendChatMessages() {
+    const tbody = document.querySelector('#adminFriendChatMessagesTable tbody');
+    const olderWrap = document.getElementById('adminFriendChatOlderWrap');
+    if (!tbody || !olderWrap || !activeAdminFriendChatId) return;
+    const loadingText = activeAdminFriendChatLimit ? `آخر ${activeAdminFriendChatLimit} رسالة` : 'كل الرسائل';
+    tbody.innerHTML = `<tr><td colspan="3">جاري تحميل ${loadingText}...</td></tr>`;
+    olderWrap.innerHTML = '';
+
+    const ref = db.ref(`friendChats/${activeAdminFriendChatId}/messages`);
+    const query = activeAdminFriendChatLimit ? ref.limitToLast(activeAdminFriendChatLimit + 1) : ref;
+    query.once('value').then(snap => {
+      const rows = collectAdminFriendChatMessages(snap.val() || {});
+      const hasOlder = !!activeAdminFriendChatLimit && rows.length > activeAdminFriendChatLimit;
+      const visibleRows = hasOlder ? rows.slice(rows.length - activeAdminFriendChatLimit) : rows;
+      olderWrap.innerHTML = activeAdminFriendChatLimit
+        ? (hasOlder
+          ? `<button class="btn-blue" onclick="loadOlderAdminFriendChatMessages()">عرض الرسائل الأقدم</button> <button class="btn-gray" onclick="loadAllAdminFriendChatMessages()">عرض كل الرسائل</button>`
+          : `<span class="tiny-note">تم تحميل كل الرسائل المتاحة (${visibleRows.length} رسالة).</span>`)
+        : `<span class="tiny-note">تم تحميل ${visibleRows.length} رسالة.</span>`;
+      if (!visibleRows.length) {
+        tbody.innerHTML = '<tr><td colspan="3">لا توجد رسائل في هذه المحادثة.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      visibleRows.sort((a, b) => Number(a.msg.timestamp || 0) - Number(b.msg.timestamp || 0));
+      visibleRows.forEach(row => {
+        const msg = row.msg || {};
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHTML(msg.senderName || msg.senderId || 'مستخدم')}</td><td><div class="friend-chat-admin-message">${escapeHTML(getAdminFriendChatText(msg))}</div></td><td>${escapeHTML(formatMessageTime(msg.timestamp))}</td>`;
+        tbody.appendChild(tr);
+      });
+    }).catch(err => {
+      tbody.innerHTML = `<tr><td colspan="3">تعذر تحميل الرسائل: ${escapeHTML(err.message || 'خطأ غير معروف')}</td></tr>`;
+    });
+  }
+
+  function closeFriendsModal() {
+    document.getElementById('friendsModal').style.display = 'none';
+  }
+
+  function loadUsersFriendsProfiles() {
+    const table = document.getElementById('userFriendsTable');
+    table.innerHTML = '<tr><td colspan="3">جاري تحميل الأصدقاء...</td></tr>';
+
+    db.ref('users').once('value', snapshot => {
+      if (!snapshot.exists()) {
+        table.innerHTML = '<tr><td colspan="3">لا يوجد مستخدمون مسجلون حالياً.</td></tr>';
+        return;
+      }
+
+      const usersById = {};
+      const rows = [];
+      snapshot.forEach(child => {
+        const uid = child.key;
+        const user = child.val() || {};
+        usersById[uid] = user;
+        const friends = Object.keys((user.friends && typeof user.friends === 'object') ? user.friends : {});
+        rows.push({
+          uid,
+          name: user.name || `مستخدم-${String(uid || '').slice(0, 6)}`,
+          friends
+        });
+      });
+
+      rows.sort((a, b) => b.friends.length - a.friends.length);
+      table.innerHTML = '';
+
+      rows.forEach(row => {
+        const previewNames = row.friends.slice(0, 3).map(id => {
+          const friend = usersById[id] || {};
+          return friend.name || `مستخدم-${String(id || '').slice(0, 6)}`;
+        });
+        const preview = previewNames.length ? previewNames.map(name => escapeHTML(name)).join('، ') : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHTML(row.name)}<span class="user-meta">${escapeHTML(row.uid)}</span></td>
+          <td>${row.friends.length}</td>
+          <td>
+            <div>${preview}</div>
+            <button class="btn-gray mini-btn" onclick='showUserFriendsPreview(${toJsString(row.name)}, ${toJsString(row.uid)}, ${toJsonArg(row.friends)}, ${toJsonArg(usersById)})'>عرض التفاصيل</button>
+          </td>
+        `;
+        table.appendChild(tr);
+      });
+    }).catch(err => {
+      table.innerHTML = `<tr><td colspan="3">تعذر تحميل الأصدقاء: ${escapeHTML(err.message || 'خطأ غير معروف')}</td></tr>`;
+    });
+  }
+
+  function showUserFriendsPreview(userName, userUid, friendsIdsJson, usersByIdJson) {
+    let friends = friendsIdsJson;
+    let usersById = usersByIdJson;
+    if (typeof friendsIdsJson === 'string') {
+      try { friends = JSON.parse(friendsIdsJson || '[]'); } catch (_) { friends = []; }
+    }
+    if (typeof usersByIdJson === 'string') {
+      try { usersById = JSON.parse(usersByIdJson || '{}'); } catch (_) { usersById = {}; }
+    }
+    openFriendsModal(userName, userUid, Array.isArray(friends) ? friends : [], usersById && typeof usersById === 'object' ? usersById : {});
+  }
+
+  function escapeHTML(value = '') {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function loadIndividualDeletedRooms() {
+    const table = document.getElementById('individualDeletedTable');
+    table.innerHTML = '';
+
+    db.ref('deleted_messages').once('value', snapshot => {
+      if (!snapshot.exists()) {
+        table.innerHTML = "<tr><td colspan='3'>لا توجد محذوفات فردية حالياً</td></tr>";
+        return;
+      }
+
+      snapshot.forEach(roomChild => {
+        const roomName = roomChild.key;
+        const items = roomChild.val() || {};
+        const count = Object.values(items).filter(v => v && typeof v === 'object').length;
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><b>${escapeHTML(roomName)}</b></td>
+          <td>${count}</td>
+          <td><button onclick='showIndividualDeleted(${toJsString(roomName)})' class="btn-orange">عرض المحذوفات الفردية</button></td>
+        `;
+        table.appendChild(row);
+      });
+    });
+  }
+
+  function showIndividualDeleted(roomName) {
+    document.getElementById('deletedModalRoom').textContent = roomName;
+    const body = document.getElementById('deletedModalBody');
+    body.innerHTML = '<div>جاري التحميل...</div>';
+    document.getElementById('deletedModal').style.display = 'flex';
+    body.scrollTop = 0;
+
+    db.ref(`deleted_messages/${roomName}`).once('value', snapshot => {
+      if (!snapshot.exists()) {
+        body.innerHTML = '<div>لا توجد عناصر محذوفة فردية لهذه الغرفة.</div>';
+        return;
+      }
+
+      const raw = snapshot.val() || {};
+      const rows = Object.entries(raw)
+        .map(([key, data]) => ({ key, data: (data && typeof data === 'object') ? data : {} }))
+        .filter(row => Object.keys(row.data).length > 0);
+
+      rows.sort((a, b) => Number((a.data && a.data.deletedAt) || 0) - Number((b.data && b.data.deletedAt) || 0));
+
+      body.innerHTML = '<div class="deleted-chat-list" id="deleted-chat-list"></div>';
+      const list = document.getElementById('deleted-chat-list');
+
+      rows.forEach(row => {
+        try {
+          const item = row.data || {};
+          const sender = item.senderName || 'مستخدم';
+          const deletedBy = item.deletedByName || 'غير معروف';
+          const when = item.deletedAt ? new Date(Number(item.deletedAt)).toLocaleString('ar-EG') : '—';
+          const isMine = (item.senderId || '') && (item.deletedBy || '') && item.senderId === item.deletedBy;
+
+          const card = document.createElement('div');
+          card.className = `deleted-item ${isMine ? 'mine' : 'other'}`;
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.innerHTML = `<span>المرسل: <b>${escapeHTML(sender)}</b></span><span>حذفها: <b>${escapeHTML(deletedBy)}</b></span><span>${when}</span>`;
+          card.appendChild(meta);
+
+          const itemType = detectDeletedItemType(item);
+          const mediaSource = getDeletedMediaSource(item, itemType);
+
+          if (itemType === 'image' && mediaSource) {
+            const img = document.createElement('img');
+            img.alt = 'deleted image';
+            img.src = mediaSource;
+            card.appendChild(img);
+          } else if (itemType === 'audio' && mediaSource) {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.src = mediaSource;
+            card.appendChild(audio);
+          } else if (itemType === 'video' && mediaSource) {
+            const video = document.createElement('video');
+            video.controls = true;
+            video.preload = 'metadata';
+            video.src = mediaSource;
+            card.appendChild(video);
+          } else {
+            const text = document.createElement('div');
+            text.className = 'content-text';
+            text.textContent = item.content || item.message || '';
+            card.appendChild(text);
+
+            if (mediaSource) {
+              const link = document.createElement('a');
+              link.className = 'media-link';
+              link.href = mediaSource;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.textContent = 'فتح الملف الأصلي';
+              card.appendChild(link);
+            }
+          }
+
+          list.appendChild(card);
+        } catch (err) {
+          const fallback = document.createElement('div');
+          fallback.className = 'deleted-item other';
+          fallback.innerHTML = `<div class="meta"><span>عنصر تالف</span><span>${escapeHTML(row.key)}</span></div><div class="content-text">تعذر عرض هذا السجل.</div>`;
+          list.appendChild(fallback);
+        }
+      });
+
+      if (!rows.length) {
+        body.innerHTML = '<div>لا توجد عناصر محذوفة فردية قابلة للعرض لهذه الغرفة.</div>';
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        body.scrollTop = 0;
+      });
+    });
+  }
+
+  function closeDeletedModal() {
+    document.getElementById('deletedModal').style.display = 'none';
+  }
+
+  function openRoomLoadLimitModal(roomName) {
+    const safeRoom = String(roomName || '').trim();
+    if (!safeRoom) return;
+    pendingRoomForOpen = safeRoom;
+    const modal = document.getElementById('roomLoadLimitModal');
+    const roomLabel = document.getElementById('roomLoadLimitRoomName');
+    if (roomLabel) roomLabel.textContent = safeRoom;
+    const customLimitInput = document.getElementById('customRoomLoadLimit');
+    if (customLimitInput) customLimitInput.value = '';
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function closeRoomLoadLimitModal() {
+    const modal = document.getElementById('roomLoadLimitModal');
+    if (modal) modal.style.display = 'none';
+    pendingRoomForOpen = '';
+  }
+
+  function openRoomWithLimitOption(limit = null) {
+    if (!pendingRoomForOpen) return;
+    const room = pendingRoomForOpen;
+    closeRoomLoadLimitModal();
+    openRoom(room, limit);
+  }
+
+  function openRoomWithCustomLimit() {
+    const input = document.getElementById('customRoomLoadLimit');
+    const customLimit = input ? Math.floor(Number(input.value)) : 0;
+    if (!Number.isFinite(customLimit) || customLimit <= 0) {
+      alert('من فضلك اكتب رقم صحيح أكبر من صفر.');
+      if (input) input.focus();
+      return;
+    }
+    openRoomWithLimitOption(customLimit);
+  }
+
+  // وظائف مساعدة (فتح الغرفة، حذف الغرفة، إلخ)
+  function openRoom(roomName, limit = null) {
+    const safeLimit = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.floor(Number(limit)) : null;
+    currentOpenedRoom = roomName;
+    document.getElementById("modalRoomName").textContent = roomName;
+    document.getElementById("roomModal").style.display = "flex";
+    const tbody = document.querySelector("#messagesTable tbody");
+    tbody.innerHTML = `<tr><td colspan="4">${safeLimit ? `جاري تحميل آخر ${safeLimit} رسالة...` : 'جاري تحميل كل الرسائل من أول رسالة...'}</td></tr>`;
+    let query = db.ref(`rooms/${roomName}/messages`);
+    if (safeLimit) query = query.limitToLast(safeLimit);
+    query.once("value", snap => {
+      if (!snap.exists()) {
+        tbody.innerHTML = '<tr><td colspan="4">لا توجد رسائل في هذه الغرفة.</td></tr>';
+        return;
+      }
+      const rows = [];
+      snap.forEach(m => {
+        const msg = m.val() || {};
+        rows.push({ key: m.key, msg });
+      });
+
+      rows.sort((a, b) => {
+        const ta = Number(a.msg && a.msg.timestamp ? a.msg.timestamp : 0);
+        const tb = Number(b.msg && b.msg.timestamp ? b.msg.timestamp : 0);
+        if (ta !== tb) return ta - tb;
+        return String(a.key || '').localeCompare(String(b.key || ''));
+      });
+
+      tbody.innerHTML = "";
+      rows.forEach(row => {
+        const msg = row.msg || {};
+        const actionButtons = `
+          <button class="btn-blue mini-btn tiny" onclick='editRoomMessagePrompt(${toJsString(roomName)}, ${toJsString(row.key)})'>✏️ تعديل</button>
+          <button class="btn-red mini-btn tiny" onclick='deleteRoomMessagePrompt(${toJsString(roomName)}, ${toJsString(row.key)})'>🗑️ حذف</button>
+        `;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${escapeHTML(msg.name || (msg.isSystem ? 'SYSTEM' : 'مستخدم'))}</td><td>${renderAdminMessageContent(msg, row.key)}</td><td>${escapeHTML(formatMessageTime(msg.timestamp))}</td><td>${actionButtons}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll('.admin-preview-image').forEach(imageEl => {
+        imageEl.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const target = event.currentTarget;
+          const src = target.getAttribute('src') || '';
+          const key = target.getAttribute('data-msg-key') || '';
+          const hasHQ = target.getAttribute('data-hq') === '1';
+          openAdminImageViewer(src, key, roomName, hasHQ);
+        });
+      });
+
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4">لا توجد رسائل قابلة للعرض في هذه الغرفة.</td></tr>';
+      }
+    }).catch(() => {
+      tbody.innerHTML = '<tr><td colspan="4">تعذر تحميل الرسائل.</td></tr>';
+    });
+  }
+
+  function deleteRoomMessagePrompt(roomName, messageKey) {
+    const safeRoom = String(roomName || '').trim();
+    const safeKey = String(messageKey || '').trim();
+    if (!safeRoom || !safeKey) return;
+    if (!confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
+
+    const updates = {};
+    updates[`rooms/${safeRoom}/messages/${safeKey}`] = null;
+    updates[`rooms/${safeRoom}/messageImageHQ/${safeKey}`] = null;
+
+    db.ref().update(updates).then(() => {
+      openRoom(safeRoom);
+    }).catch(err => {
+      alert(`تعذر حذف الرسالة: ${err.message || 'خطأ غير معروف'}`);
+    });
+  }
+
+  function editRoomMessagePrompt(roomName, messageKey) {
+    const safeRoom = String(roomName || '').trim();
+    const safeKey = String(messageKey || '').trim();
+    if (!safeRoom || !safeKey) return;
+
+    db.ref(`rooms/${safeRoom}/messages/${safeKey}`).once('value').then(snap => {
+      if (!snap.exists()) {
+        alert('الرسالة غير موجودة.');
+        return;
+      }
+      const msg = snap.val() || {};
+      const oldText = String(msg.message || '');
+      const nextText = prompt('عدّل نص الرسالة:', oldText);
+      if (nextText === null) return;
+      const safeText = String(nextText).trim();
+      if (!safeText) {
+        alert('لا يمكن ترك الرسالة فارغة.');
+        return;
+      }
+
+      return db.ref(`rooms/${safeRoom}/messages/${safeKey}`).update({
+        message: safeText,
+        editedAt: firebase.database.ServerValue.TIMESTAMP
+      }).then(() => {
+        openRoom(safeRoom);
+      });
+    }).catch(err => {
+      alert(`تعذر تعديل الرسالة: ${err.message || 'خطأ غير معروف'}`);
+    });
+  }
+
+  function closeModal() { document.getElementById("roomModal").style.display = "none"; }
+
+  function setRoomStatus(roomName, status) {
+    const safeRoom = String(roomName || '').trim();
+    const safeStatus = String(status || '').trim();
+    if (!safeRoom || !safeStatus) return;
+
+    const statusLabels = {
+      open: 'فتح الغرفة',
+      closed: 'قفل الغرفة',
+      membersOnly: 'تفعيل وضع الأعضاء فقط'
+    };
+    const actionLabel = statusLabels[safeStatus] || safeStatus;
+
+    if (!confirm(`تأكيد: ${actionLabel} في غرفة "${safeRoom}"؟`)) return;
+
+    db.ref(`rooms/${safeRoom}/status`).set(safeStatus).then(() => {
+      alert('✅ تم تحديث حالة الغرفة بنجاح.');
+      loadActiveRooms();
+    }).catch(err => {
+      alert(`تعذر تحديث الحالة: ${err.message || 'خطأ غير معروف'}`);
+    });
+  }
+
+  function sendSystemMessagePrompt() {
+    if (!currentOpenedRoom) {
+      alert('افتح غرفة أولاً لإرسال رسالة النظام.');
+      return;
+    }
+
+    const input = document.getElementById('system-message-input');
+    const inlineText = input ? String(input.value || '').trim() : '';
+    const message = inlineText || String(prompt('اكتب رسالة النظام التي تريد إرسالها:', '') || '').trim();
+    if (!message) {
+      alert('اكتب رسالة أولاً.');
+      return;
+    }
+
+    sendSystemMessageToRoom(currentOpenedRoom, message).then(() => {
+      if (input) input.value = '';
+      openRoom(currentOpenedRoom);
+    });
+  }
+
+  function sendSystemMessageToRoom(roomName, text) {
+    const safeRoom = String(roomName || '').trim();
+    const safeText = String(text || '').trim();
+    if (!safeRoom || !safeText) return Promise.resolve();
+
+    const payload = {
+      isSystem: true,
+      name: 'SYSTEM',
+      message: safeText,
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    return db.ref(`rooms/${safeRoom}/messages`).push(payload)
+      .then(() => {
+        alert('✅ تم إرسال رسالة النظام.');
+      })
+      .catch(err => {
+        alert(`تعذر إرسال الرسالة: ${err.message || 'خطأ غير معروف'}`);
+      });
+  }
+
+  function createNewRoom() {
+    const name = prompt("اسم الغرفة الجديدة:");
+    if (name) db.ref(`rooms/${name}`).set({ status: "open" }).then(loadRooms);
+  }
+
+  function deleteRoom(roomName) {
+    if (confirm("حذف الغرفة بالكامل؟")) db.ref(`rooms/${roomName}`).remove().then(loadRooms);
+  }
+
+  // تشغيل عند الفتح
+  window.onload = loadRooms;
+</script>
+</body>
+  </html>
