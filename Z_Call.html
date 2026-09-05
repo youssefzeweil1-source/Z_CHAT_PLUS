@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مكالمة ZEWEIL</title>
+    <script src="https://8x8.vc/vpaas-magic-cookie-19a64a039d5e4e208149885f367d9e8c/external_api.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0f1117; 
+            font-family: Tahoma, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #jaas-container { 
+            flex: 1; 
+            background: #1a1a1a;
+        }
+        #toolbar {
+            background: linear-gradient(135deg, #1d2330, #232a39);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-bottom: 1px solid #3b4458;
+            color: #fff;
+        }
+        #room-name {
+            flex: 1;
+            font-size: 1.1rem;
+            color: var(--main-color, #5b8cff);
+            font-weight: bold;
+        }
+        button {
+            background: linear-gradient(135deg, #5b8cff, #25c5a8);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        #status {
+            color: #ffaa33;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <div id="room-name">جاري تحميل الغرفة...</div>
+        <div id="status">🟡 جاري الاتصال</div>
+        <button onclick="copyInviteLink()">📋 نسخ رابط الدعوة</button>
+        <button onclick="window.close()">❌ إغلاق</button>
+    </div>
+    <div id="jaas-container"></div>
+
+    <script>
+        // قراءة اسم الغرفة من الرابط
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomParam = urlParams.get('room') || 'general';
+        
+        // تنظيف اسم الغرفة
+        const safeRoom = roomParam.replace(/\s+/g, '-').replace(/[^\w\-]/g, '').slice(0, 30);
+        const roomName = `vpaas-magic-cookie-19a64a039d5e4e208149885f367d9e8c/ZEWEIL-${safeRoom}`;
+        
+        // عرض اسم الغرفة
+        document.getElementById('room-name').innerText = `الغرفة: ${roomParam}`;
+        document.getElementById('status').innerHTML = '🟢 جاري التحميل...';
+        
+        // تهيئة Jitsi
+        window.onload = () => {
+            try {
+                const api = new JitsiMeetExternalAPI("8x8.vc", {
+                    roomName: roomName,
+                    parentNode: document.querySelector('#jaas-container'),
+                    configOverwrite: {
+                        startWithAudioMuted: false,
+                        startWithVideoMuted: false,
+                        prejoinPageEnabled: false,
+                        disableDeepLinking: true,
+                        enableWelcomePage: false
+                    },
+                    interfaceConfigOverwrite: {
+                        SHOW_JITSI_WATERMARK: false,
+                        SHOW_WATERMARK_FOR_GUESTS: false,
+                        TOOLBAR_BUTTONS: [
+                            'microphone', 'camera', 'closedcaptions', 'desktop',
+                            'fullscreen', 'fodeviceselection', 'hangup',
+                            'profile', 'chat', 'recording', 'livestreaming',
+                            'etherpad', 'sharedvideo', 'settings', 'raisehand',
+                            'videoquality', 'filmstrip', 'invite', 'feedback',
+                            'stats', 'shortcuts', 'tileview', 'videobackgroundblur',
+                            'download', 'help', 'mute-everyone', 'security'
+                        ]
+                    }
+                });
+                
+                document.getElementById('status').innerHTML = '🟢 متصل';
+                
+                // مراقبة حالة الاتصال
+                api.addEventListener('videoConferenceLeft', () => {
+                    document.getElementById('status').innerHTML = '🔴 تم المغادرة';
+                });
+                
+                api.addEventListener('readyToClose', () => {
+                    window.close();
+                });
+                
+            } catch (error) {
+                document.getElementById('status').innerHTML = '🔴 خطأ في الاتصال';
+                console.error('Jitsi error:', error);
+            }
+        };
+        
+        // نسخ رابط الدعوة
+        function copyInviteLink() {
+            const inviteLink = window.location.href;
+            navigator.clipboard.writeText(inviteLink).then(() => {
+                alert('تم نسخ الرابط! شاركه مع أصدقائك');
+            }).catch(() => {
+                prompt('انسخ الرابط:', inviteLink);
+            });
+        }
+    </script>
+</body>
+</html>
