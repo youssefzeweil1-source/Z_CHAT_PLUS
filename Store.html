@@ -101,6 +101,11 @@
         .confirm:disabled { opacity:.6; cursor:not-allowed; }
         .close { background:#30394c; color:#fff; }
         .note { max-width:1050px; margin:18px auto 0; color:#aeb9cc; font-size:.9rem; line-height:1.7; text-align:center; }
+        .level-card { max-width:1050px; margin:0 auto 18px; background:linear-gradient(135deg, rgba(91,140,255,.18), rgba(255,180,84,.12)); border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow:0 14px 32px rgba(0,0,0,.24); }
+        .level-head { display:flex; justify-content:space-between; gap:10px; align-items:center; font-weight:bold; }
+        .level-progress { height:12px; background:#0f1520; border:1px solid #33415a; border-radius:999px; overflow:hidden; margin:10px 0 7px; }
+        .level-progress-fill { width:0%; height:100%; background:linear-gradient(90deg,var(--green),var(--main),var(--gold)); transition:width .3s ease; }
+        .level-meta { color:#aeb9cc; font-size:.82rem; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
     </style>
 </head>
 <body>
@@ -111,6 +116,12 @@
             <a class="back" href="index.html">رجوع للشات</a>
         </div>
     </header>
+
+    <section class="level-card" aria-label="مستوى المستخدم">
+        <div class="level-head"><span id="store-level-title">المستوى 1</span><span id="store-level-percent">0%</span></div>
+        <div class="level-progress"><div id="store-level-fill" class="level-progress-fill"></div></div>
+        <div class="level-meta"><span id="store-level-xp">XP: 0</span><span id="store-level-next">المتبقي للمستوى التالي: 50 XP</span></div>
+    </section>
 
     <!-- قسم العملات -->
     <div class="section-title">💰 شحن عملات Z Coin</div>
@@ -161,6 +172,8 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const WALLET_BALANCE_STORAGE_KEY = 'zeweil_z_coin_balance_v1';
+    const LEVEL_XP_REQUIREMENTS = [0, 50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750, 3300, 3900, 4550, 5250, 6000, 6800, 7650, 8550, 9500];
+    const XP_PER_EGP = 0.16;
     
     // بيانات المتجر
     const coinPacks = [
@@ -200,6 +213,45 @@
     let selectedCustomNameColor = '#ff7aa2';
 
     function formatPrice(value) { return value.toLocaleString('ar-EG'); }
+    function calculateLevel(xpValue = 0) {
+        const xp = Math.max(0, Number(xpValue) || 0);
+        let level = 1;
+        for (let i = 0; i < LEVEL_XP_REQUIREMENTS.length; i++) {
+            if (xp >= LEVEL_XP_REQUIREMENTS[i]) level = i + 1;
+        }
+        return Math.min(20, level);
+    }
+    function getLevelProgress(xpValue = 0) {
+        const xp = Math.max(0, Number(xpValue) || 0);
+        const level = calculateLevel(xp);
+        const current = LEVEL_XP_REQUIREMENTS[level - 1] || 0;
+        const next = LEVEL_XP_REQUIREMENTS[level] || current;
+        const span = Math.max(1, next - current);
+        const percent = level >= 20 ? 100 : Math.max(0, Math.min(100, Math.round(((xp - current) / span) * 100)));
+        return { xp, level, current, next, percent, remaining: level >= 20 ? 0 : Math.max(0, next - xp) };
+    }
+    function calculatePurchaseXp(amount = 0) { return Math.max(1, Math.round((Number(amount) || 0) * XP_PER_EGP)); }
+    function renderStoreLevel(data = userProfile) {
+        const info = getLevelProgress(data?.xp || 0);
+        document.getElementById('store-level-title').textContent = `المستوى ${info.level}`;
+        document.getElementById('store-level-percent').textContent = `${info.percent}%`;
+        document.getElementById('store-level-fill').style.width = `${info.percent}%`;
+        document.getElementById('store-level-xp').textContent = `XP: ${Math.floor(info.xp).toLocaleString('en-US')}`;
+        document.getElementById('store-level-next').textContent = info.level >= 20 ? 'وصلت لأعلى مستوى' : `المتبقي للمستوى التالي: ${Math.ceil(info.remaining).toLocaleString('en-US')} XP`;
+    }
+    async function addXpToUser(uid, amount, source, meta = {}) {
+        const xpToAdd = calculatePurchaseXp(amount);
+        const snap = await db.ref(`users/${uid}/xp`).once('value');
+        const nextXp = Math.max(0, Number(snap.val() || 0)) + xpToAdd;
+        const nextLevel = calculateLevel(nextXp);
+        const key = db.ref().push().key;
+        await db.ref().update({
+            [`users/${uid}/xp`]: nextXp,
+            [`users/${uid}/level`]: nextLevel,
+            [`users/${uid}/xpHistory/${key}`]: { source, xp: xpToAdd, amount: Number(amount) || 0, ...meta, createdAt: firebase.database.ServerValue.TIMESTAMP }
+        });
+        return { xpToAdd, nextXp, nextLevel };
+    }
     function calculateDiscount(oldPrice, newPrice) {
         if (!oldPrice || oldPrice <= newPrice) return 0;
         return Math.round(((oldPrice - newPrice) / oldPrice) * 100);
@@ -371,7 +423,8 @@
                         await db.ref(`users/${userId}/appearance/nameColor`).set(item.color);
                     }
                 }
-                alert('تمت عملية الشراء بنجاح!');
+                await addXpToUser(userId, item.price, `store_${type}`, { itemId:id, itemName:item.name });
+                alert('تمت عملية الشراء بنجاح! وتمت إضافة XP لحسابك.');
                 location.reload();
             } catch (e) { alert('حدث خطأ أثناء الشراء.'); }
         }
@@ -435,9 +488,11 @@
             db.ref(`users/${userId}`).on('value', snap => {
                 userProfile = snap.val() || {};
                 setBalance(userProfile.wallet?.zCoins || 0);
+                renderStoreLevel(userProfile);
                 renderAll();
             });
         } else {
+            renderStoreLevel({ xp: 0 });
             renderAll();
         }
     });
